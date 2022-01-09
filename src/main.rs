@@ -3,13 +3,13 @@ mod array_nd;
 use array_nd::Array1D;
 
 fn main() {
-    let data: Vec<f64> = vec![1., 2., 3., 4., 5., 328., 283.];
-    let array: Array1D<f64> = Array1D::new(data);
+    let data: Vec<i64> = (1..100000000).collect();
+    let array: Array1D<i64> = Array1D::new(data);
     println!(
         "{:?}",
-        array.clone() + array.clone() + array.clone() + array.clone() + array.clone()
+        &(array.clone() / array.clone()).data[1..100]
     );
-    println!("{:?}", array);
+    // println!("{:?}", array);
     println!("sum: {:?}", array.sum());
     println!("Hello, world!");
 }

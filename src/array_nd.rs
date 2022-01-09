@@ -6,7 +6,7 @@ use std::{
 
 #[derive(Clone)]
 pub struct Array1D<T: Copy> {
-    data: Vec<T>,
+    pub data: Vec<T>,
     shape: (usize,),
     min: T,
     max: T,
@@ -461,7 +461,12 @@ mod tests {
     }
 
     #[test]
-    fn pass_add_single_integer() {
+    fn add_integer() {
+        let data_addition_mult = get_array_1d_integer()
+            + get_array_1d_integer()
+            + get_array_1d_integer()
+            + get_array_1d_integer()
+            + get_array_1d_integer();
         let array1 = get_array_1d_integer();
         let array2 = get_array_1d_integer();
         let data_addition = array1.clone() + array2;
@@ -471,45 +476,25 @@ mod tests {
             array1.clone() + vec![1, 2, 3, 4, 5, 6, 7],
             Array1D::new(vec![2, 4, 6, 8, 10, 12, 14])
         );
-        assert_eq!(array1 + 1, Array1D::new(vec![2, 3, 4, 5, 6, 7, 8]))
-    }
-
-    #[test]
-    fn pass_add_multiple_integer() {
-        let data_addition = get_array_1d_integer()
-            + get_array_1d_integer()
-            + get_array_1d_integer()
-            + get_array_1d_integer()
-            + get_array_1d_integer();
+        assert_eq!(array1 + 1, Array1D::new(vec![2, 3, 4, 5, 6, 7, 8]));
 
         let expected_array = Array1D::new(vec![5, 10, 15, 20, 25, 30, 35]);
-        assert_eq!(data_addition, expected_array);
-        assert_eq!(data_addition, expected_array);
-        assert_eq!(data_addition, expected_array);
-    }
-
-    #[test]
-    fn fail_on_add_wrong_length_integer() {
-        let array1 = get_array_1d_integer();
-        let array2: Array1D<i32> = get_array_1d_integer();
-        let data_addition = array1 + array2;
+        assert_eq!(data_addition_mult, expected_array);
 
         let incorrect_array: Array1D<i32> = Array1D::new(vec![2, 4, 6, 8, 10, 12, 14, 16]);
-        assert_ne!(data_addition, incorrect_array)
-    }
-
-    #[test]
-    fn fail_on_add_incorrect_addition_integer() {
-        let array1 = get_array_1d_integer();
-        let array2 = get_array_1d_integer();
-        let data_addition = array1 + array2;
+        assert_ne!(data_addition, incorrect_array);
 
         let incorrect_array = Array1D::new(vec![2, 4, 6, 8, 10, 12, 123]);
         assert_ne!(data_addition, incorrect_array)
     }
 
     #[test]
-    fn pass_add_single_float() {
+    fn add_float() {
+        let data_addition_mult = get_array_1d_float()
+            + get_array_1d_float()
+            + get_array_1d_float()
+            + get_array_1d_float()
+            + get_array_1d_float();
         let array1 = get_array_1d_float();
         let array2 = get_array_1d_float();
         let data_addition = array1.clone() + array2;
@@ -522,38 +507,91 @@ mod tests {
             array1.clone() + vec![1., 2., 3., 4., 5., 6., 7.],
             Array1D::new(vec![2., 4., 6., 8., 10., 12., 14.])
         );
-        assert_eq!(array1 + 1., Array1D::new(vec![2., 3., 4., 5., 6., 7., 8.]))
-    }
-
-    #[test]
-    fn pass_add_multiple_float() {
-        let data_addition = get_array_1d_float()
-            + get_array_1d_float()
-            + get_array_1d_float()
-            + get_array_1d_float()
-            + get_array_1d_float();
+        assert_eq!(array1 + 1., Array1D::new(vec![2., 3., 4., 5., 6., 7., 8.]));
 
         let expected_array = Array1D::new(vec![5., 10., 15., 20., 25., 30., 35.]);
-        assert_eq!(data_addition, expected_array,);
-    }
-
-    #[test]
-    fn fail_on_add_wrong_length_float() {
-        let array1 = get_array_1d_float();
-        let array2 = get_array_1d_float();
-        let data_addition = array1 + array2;
+        assert_eq!(data_addition_mult, expected_array,);
 
         let incorrect_array = Array1D::new(vec![2., 4., 6., 8., 10., 12., 14., 16.]);
-        assert_ne!(data_addition, incorrect_array)
-    }
-
-    #[test]
-    fn fail_on_add_incorrect_addition_float() {
-        let array1 = get_array_1d_float();
-        let array2 = get_array_1d_float();
-        let data_addition = array1 + array2;
+        assert_ne!(data_addition, incorrect_array);
 
         let incorrect_array = Array1D::new(vec![2., 4., 6., 8., 10., 12., 123.]);
         assert_ne!(data_addition, incorrect_array)
+    }
+
+    #[test]
+    fn sub_float() {
+        let array1 = get_array_1d_float();
+        let array2 = get_array_1d_float();
+
+        assert_eq!(
+            array1.clone() - array2,
+            Array1D::new(vec![0., 0., 0., 0., 0., 0., 0.])
+        );
+        assert_eq!(
+            array1.clone() - vec![1., 2., 3., 4., 5., 6., 7.],
+            Array1D::new(vec![0., 0., 0., 0., 0., 0., 0.])
+        );
+        assert_eq!(
+            array1.clone() - 2.,
+            Array1D::new(vec![-1., 0., 1., 2., 3., 4., 5.])
+        );
+    }
+
+    #[test]
+    fn mul_float() {
+        let array1 = get_array_1d_float();
+        let array2 = get_array_1d_float();
+
+        assert_eq!(
+            array1.clone() * array2,
+            Array1D::new(vec![1., 4., 9., 16., 25., 36., 49.])
+        );
+        assert_eq!(
+            array1.clone() * vec![1., 2., 3., 4., 5., 6., 7.],
+            Array1D::new(vec![1., 4., 9., 16., 25., 36., 49.])
+        );
+        assert_eq!(
+            array1.clone() * 2.,
+            Array1D::new(vec![2., 4., 6., 8., 10., 12., 14.])
+        );
+        assert_eq!(array1.clone() * 1., array1);
+    }
+
+    #[test]
+    fn div_float() {
+        let array1 = get_array_1d_float();
+        let array2 = get_array_1d_float();
+
+        assert_eq!(
+            array1.clone() / array2,
+            Array1D::new(vec![1., 1., 1., 1., 1., 1., 1.])
+        );
+        assert_eq!(
+            array1.clone() / vec![1., 2., 3., 4., 5., 6., 7.],
+            Array1D::new(vec![1., 1., 1., 1., 1., 1., 1.])
+        );
+        assert_eq!(
+            array1.clone() / 2.,
+            Array1D::new(vec![0.5, 1., 1.5, 2., 2.5, 3., 3.5])
+        );
+        assert_eq!(array1.clone() / 1., array1);
+    }
+
+    #[test]
+    fn sum_float() {
+        let array1 = get_array_1d_float();
+        let array1_sum = array1.sum();
+
+        assert_eq!(array1_sum, 28.);
+    }
+
+    #[test]
+    fn mixed_operation_float() {
+        let array1 = get_array_1d_float();
+        let array =
+           array1.clone() + ((array1.clone() * 2.) - array1.clone()) / ((array1.clone() + array1.clone()) / 2.);
+
+        assert_eq!(array, Array1D::new(vec![2., 3., 4., 5., 6., 7., 8.]));
     }
 }
