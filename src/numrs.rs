@@ -1,36 +1,142 @@
-use num_traits::Zero;
+use num_traits:: {One, Zero};
+use rand::{distributions::Standard, prelude::Distribution, Rng};
+use rayon::iter::{
+    IntoParallelRefIterator,
+    ParallelIterator,
+};
 use std::{
+    cmp::min,
     fmt::{Debug, Display},
+    marker::Sync,
     ops::{Add, Div, Mul, Sub},
 };
 
+/// 1D Array
+///
+///
+/// Uses a Vec internally.
+/// Takes ownership of the data
+///
+/// # Example
+/// ```
+/// use array_nd::Array1D;
+/// let data: Vec<f64> = vec![1.0, 2.0, 3.0];
+/// let array: Array1D<f64> = Array1D::new(data);
+/// assert_eq!(array.data, vec![1.0, 2.0, 3.0]);
+/// ```
 #[derive(Clone)]
 pub struct Array1D<T: Copy> {
     pub data: Vec<T>,
-    shape: (usize,),
-    min: T,
     max: T,
+    min: T,
+    shape: (usize,),
+    size: usize,
 }
 
-// constructor for 1d array
 impl<T> Array1D<T>
 where
-    T: Copy + Zero + std::cmp::PartialOrd,
+    T: Copy
+        + Zero
+        + One
+        + std::cmp::PartialOrd
+        + Send
+        + Sync
+        + rand::distributions::uniform::SampleUniform,
+    Standard: Distribution<T>,
 {
+    /// Creates a new 1D Array
+    ///
+    /// # Example
+    /// ```
+    /// use array_nd::Array1D;
+    /// let data: Vec<f64> = vec![1.0, 2.0, 3.0];
+    /// let array: Array1D<f64> = Array1D::new(data);
+    /// ```
     pub fn new(data: Vec<T>) -> Array1D<T> {
         let min = find_min(&data);
         let max = find_max(&data);
         Array1D {
             shape: (data.len() as usize,),
+            size: data.len(),
             data,
             min,
             max,
         }
     }
 
+    /// Sums the data inside 1D Array
+    ///
+    /// Uses a sequential sum when the Array size is small (less than 1 million)
+    ///
+    /// Uses a parallel sum when the Array size is large (greater than 1 million)
+    ///
+    /// # Example
+    /// ```
+    /// use array_nd::Array1D;
+    /// let data: Vec<f64> = vec![1.0, 2.0, 3.0];
+    /// let array: Array1D<f64> = Array1D::new(data);
+    /// assert_eq!(array.sum(), 6.0);
+    /// ```
     pub fn sum(&self) -> T {
+        if self.size > 1_000_000 {
+            self.par_sum()
+        } else {
+            self.seq_sum()
+        }
+    }
+
+    /// Seqential Sum used inside 1D Array
+    pub fn seq_sum(&self) -> T {
         self.data.iter().fold(T::zero(), |sum, &val| sum + val)
     }
+
+    /// Parallel Sum used inside 1D Array
+    pub fn par_sum(&self) -> T {
+        self.data
+            .par_iter()
+            .fold(|| T::zero(), |sum, &val| sum + val)
+            .collect::<Vec<T>>()
+            .iter()
+            .fold(T::zero(), |sum, &val| sum + val)
+    }
+
+    /// Generates a random 1D Array
+    ///
+    /// # Example
+    /// ```
+    /// use array_nd::Array1D;
+    /// let array: Array1D<f64> = Array1D::random(10);
+    /// ```
+    pub fn random(size: usize) -> Array1D<T> {
+        let mut rng = rand::thread_rng();
+        let data: Vec<T> = (0..size).map(|_| rng.gen::<T>()).collect();
+        Array1D::new(data)
+    }
+
+    /// Generates a random 1D Array with a range
+    ///
+    /// # Example
+    /// ```
+    /// use array_nd::Array1D;
+    /// let array: Array1D<i64> = Array1D::random_range(10, 1, 10);
+    /// ```
+    pub fn random_range(size: usize, min: T, max: T) -> Array1D<T> {
+        let mut rng = rand::thread_rng();
+        let data: Vec<T> = (0..size).map(|_| rng.gen_range(min..max)).collect();
+        Array1D::new(data)
+    }
+}
+
+/// Generates a 1D Array with consecutive numbers
+///
+/// # Example
+/// ```
+/// use array_nd::Array1D;
+/// let array: Array1D<i64> = Array1D::arange(10);
+/// ```
+pub fn arange(size: i64) -> Array1D<i64> {
+    let data: Vec<i64> = (0..size).collect();
+    Array1D::new(data)
 }
 
 fn find_min<T: Copy + Zero + std::cmp::PartialOrd>(data: &[T]) -> T {
@@ -42,7 +148,7 @@ fn find_min<T: Copy + Zero + std::cmp::PartialOrd>(data: &[T]) -> T {
 
 fn find_max<T: Copy + Zero + std::cmp::PartialOrd>(data: &[T]) -> T {
     data.iter()
-        .reduce(|x, y| if x < y { x } else { y })
+        .reduce(|x, y| if x > y { x } else { y })
         .cloned()
         .unwrap()
 }
@@ -90,6 +196,7 @@ where
 
         Array1D {
             shape: (lhs.shape.0,),
+            size: lhs.size,
             data,
             min,
             max,
@@ -125,6 +232,7 @@ where
 
         Array1D {
             shape: (lhs.shape.0,),
+            size: lhs.size,
             data,
             min,
             max,
@@ -160,6 +268,7 @@ where
 
         Array1D {
             shape: (lhs.shape.0,),
+            size: lhs.size,
             data,
             min,
             max,
@@ -195,6 +304,7 @@ where
 
         Array1D {
             shape: (lhs.shape.0,),
+            size: lhs.size,
             data,
             min,
             max,
@@ -232,6 +342,7 @@ where
 
         Array1D {
             shape: (lhs.shape.0,),
+            size: lhs.size,
             data,
             min,
             max,
@@ -268,6 +379,7 @@ where
 
         Array1D {
             shape: (lhs.shape.0,),
+            size: lhs.size,
             data,
             min,
             max,
@@ -304,6 +416,7 @@ where
 
         Array1D {
             shape: (lhs.shape.0,),
+            size: lhs.size,
             data,
             min,
             max,
@@ -340,6 +453,7 @@ where
 
         Array1D {
             shape: (lhs.shape.0,),
+            size: lhs.size,
             data,
             min,
             max,
@@ -416,14 +530,15 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.shape.0 > 100 {
+            let print_limit = min(self.shape.0, 100);
             write!(
                 f,
-                "Array2D {:?}, min: {:?}, max: {:?}, data[..{:?}] {:?}",
+                "Array2D {:?}, min: {:?}, max: {:?}, data[..{:?}] {:?}...",
                 self.shape,
                 self.min,
                 self.max,
-                self.shape.0,
-                &self.data[..self.shape.0]
+                print_limit,
+                &self.data[..print_limit]
             )
         } else {
             write!(
@@ -450,7 +565,8 @@ impl<T: std::marker::Copy + std::cmp::PartialEq> PartialEq<Array1D<T>> for Array
 
 #[cfg(test)]
 mod tests {
-    use crate::array_nd::Array1D;
+    use crate::numrs::Array1D;
+    use crate::numrs;
 
     fn get_array_1d_integer() -> Array1D<i32> {
         Array1D::new(vec![1, 2, 3, 4, 5, 6, 7])
@@ -581,17 +697,34 @@ mod tests {
     #[test]
     fn sum_float() {
         let array1 = get_array_1d_float();
-        let array1_sum = array1.sum();
 
-        assert_eq!(array1_sum, 28.);
+        assert_eq!(array1.sum(), 28.);
+        assert_eq!(array1.seq_sum(), 28.);
+        assert_eq!(array1.par_sum(), 28.);
     }
 
     #[test]
     fn mixed_operation_float() {
         let array1 = get_array_1d_float();
-        let array =
-           array1.clone() + ((array1.clone() * 2.) - array1.clone()) / ((array1.clone() + array1.clone()) / 2.);
+        let array = array1.clone()
+            + ((array1.clone() * 2.) - array1.clone()) / ((array1.clone() + array1.clone()) / 2.);
 
         assert_eq!(array, Array1D::new(vec![2., 3., 4., 5., 6., 7., 8.]));
+    }
+
+    #[test]
+    fn random() {
+        let array1: Array1D<f64> = Array1D::random(3);
+        let array2: Array1D<i64> = Array1D::random_range(3, 1, 10);
+
+        assert_eq!(array1.shape, (3,));
+        assert!(array1.data[0] >= 0. && array1.data[0] < 1.);
+        assert!(array2.data[0] >= 1 && array2.data[0] <= 10);
+    }
+
+    #[test]
+    fn arange() {
+        let array1 = numrs::arange(10);
+        assert_eq!(array1, Array1D::new(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]));
     }
 }
