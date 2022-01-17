@@ -1,14 +1,14 @@
-mod numrs;
+mod lib;
 
 use std::time::Instant;
 
-use numrs::Array1D;
+use lib::Array1D;
 use rand::Rng;
 
-
 fn main() {
-    // let array: Array1D<f32> = Array1D::random_range(1000000000, 1., 10.);
-    let array: Array1D<_> = numrs::arange(1000000000);
+
+    let array: Array1D = Array1D::random(100_000_000);
+    // let array: Array1D<_> = numrs::arange(100_000_000);
     println!("{:?}", array);
     let now = Instant::now();
     println!("sum seq: {:?}", array.seq_sum());
