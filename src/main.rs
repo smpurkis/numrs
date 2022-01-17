@@ -2,13 +2,13 @@ mod lib;
 
 use std::time::Instant;
 
-use lib::Array1D;
+use lib::ArrayND;
 
 
 fn main() {
 
-    let array: Array1D = Array1D::random(100_000_000);
-    // let array: Array1D<_> = numrs::arange(100_000_000);
+    let array: ArrayND = ArrayND::random(100_000_000);
+    // let array: ArrayND<_> = numrs::arange(100_000_000);
     println!("{:?}", array);
     let now = Instant::now();
     println!("sum seq: {:?}", array.seq_sum());
