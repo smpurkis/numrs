@@ -3,7 +3,7 @@ mod lib;
 use std::time::Instant;
 
 use lib::Array1D;
-use rand::Rng;
+
 
 fn main() {
 

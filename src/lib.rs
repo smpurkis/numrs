@@ -1,19 +1,12 @@
-use num_traits:: {Zero};
-use rand::{distributions::Standard, prelude::Distribution, Rng};
-use rayon::iter::{
-    IntoParallelRefIterator,
-    ParallelIterator,
-};
-use wasm_bindgen::prelude::wasm_bindgen;
+use num_traits::Zero;
+use rand::Rng;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{
     cmp::min,
     fmt::{Debug, Display},
-    marker::Sync,
     ops::{Add, Div, Mul, Sub},
 };
-
-
-
+use wasm_bindgen::prelude::wasm_bindgen;
 
 /// 1D Array
 ///
@@ -87,13 +80,13 @@ impl Array1D {
         self.data.iter().fold(0., |sum, &val| sum + val)
     }
 
-    #[cfg(target_family="wasm")]
+    #[cfg(target_family = "wasm")]
     /// Seqential Sum used inside 1D Array
     pub fn par_sum(&self) -> f64 {
         self.seq_sum()
     }
 
-    #[cfg(target_family="unix")]
+    #[cfg(target_family = "unix")]
     /// Parallel Sum used inside 1D Array
     pub fn par_sum(&self) -> f64 {
         self.data
@@ -129,7 +122,7 @@ impl Array1D {
         let data: Vec<f64> = (0..size).map(|_| rng.gen_range(min..max)).collect();
         Array1D::new(data)
     }
-    
+
     pub fn add(mut self, num: f64) -> Array1D {
         self.data.iter_mut().for_each(|x| *x += num);
         self
@@ -168,7 +161,7 @@ fn find_max<T: Copy + Zero + std::cmp::PartialOrd>(data: &[T]) -> T {
         .unwrap()
 }
 
-impl Display for Array1D{
+impl Display for Array1D {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -180,7 +173,7 @@ impl Display for Array1D{
     }
 }
 
-impl Add<Array1D> for Array1D{
+impl Add<Array1D> for Array1D {
     type Output = Array1D;
 
     fn add(self, rhs: Self) -> Array1D {
@@ -213,7 +206,7 @@ impl Add<Array1D> for Array1D{
     }
 }
 
-impl Sub<Array1D> for Array1D{
+impl Sub<Array1D> for Array1D {
     type Output = Array1D;
 
     fn sub(self, rhs: Self) -> Array1D {
@@ -246,7 +239,7 @@ impl Sub<Array1D> for Array1D{
     }
 }
 
-impl Mul<Array1D> for Array1D{
+impl Mul<Array1D> for Array1D {
     type Output = Array1D;
 
     fn mul(self, rhs: Self) -> Array1D {
@@ -279,7 +272,7 @@ impl Mul<Array1D> for Array1D{
     }
 }
 
-impl Div<Array1D> for Array1D{
+impl Div<Array1D> for Array1D {
     type Output = Array1D;
 
     fn div(self, rhs: Self) -> Array1D {
@@ -538,7 +531,7 @@ impl PartialEq<Array1D> for Array1D {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Array1D};
+    use crate::Array1D;
 
     // fn get_array_1d_integer() -> Array1D {
     //     Array1D::new(vec![1, 2, 3, 4, 5, 6, 7])
@@ -575,7 +568,6 @@ mod tests {
     //     let incorrect_array = Array1D::new(vec![2, 4, 6, 8, 10, 12, 123]);
     //     assert_ne!(data_addition, incorrect_array)
     // }
-
     #[test]
     fn add_float() {
         let data_addition_mult = get_array_1d_float()
