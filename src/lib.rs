@@ -1,13 +1,13 @@
 use num_traits::Zero;
 use rand::Rng;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use serde::{Serialize, Deserialize};
 use std::{
     cmp::min,
     fmt::{Debug, Display},
-    ops::{Add, Div, Mul, Sub},
+    ops::{Add, Div, Index, Mul, Range, RangeFrom, RangeTo, Sub},
 };
-use wasm_bindgen::prelude::wasm_bindgen;
-
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 
 /// 1D Array
 ///
@@ -20,11 +20,119 @@ use wasm_bindgen::prelude::wasm_bindgen;
 /// use numrs::ArrayND;
 /// let data: Vec<f64> = vec![1.0, 2.0, 3.0];
 /// let array: ArrayND = ArrayND::new(data);
-/// ``` 
+/// ```
+
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+enum ArrayData {
+    OneD(Vec<f64>),
+    TwoD(Vec<Vec<f64>>),
+    ThreeD(Vec<Vec<Vec<f64>>>),
+    FourD(Vec<Vec<Vec<Vec<f64>>>>),
+}
+
+impl Index<usize> for ArrayData {
+    type Output = f64;
+    fn index(&self, index: usize) -> &Self::Output {
+        match self {
+            Self::OneD(arg0) => &arg0[index],
+            Self::TwoD(arg0) => &arg0[index][0],
+            Self::ThreeD(arg0) => &arg0[index][0][0],
+            Self::FourD(arg0) => &arg0[index][0][0][0],
+        }
+    }
+}
+
+impl Index<Range<usize>> for ArrayData {
+    type Output = [f64];
+
+    fn index(&self, index: Range<usize>) -> &Self::Output {
+        match self {
+            Self::OneD(arg0) => &arg0[index],
+            Self::TwoD(arg0) => &arg0[index][0],
+            Self::ThreeD(arg0) => &arg0[index][0][0],
+            Self::FourD(arg0) => &arg0[index][0][0][0],
+        }
+    }
+}
+
+impl Index<RangeTo<usize>> for ArrayData {
+    type Output = [f64];
+
+    fn index(&self, index: RangeTo<usize>) -> &Self::Output {
+        match self {
+            Self::OneD(arg0) => &arg0[index],
+            Self::TwoD(arg0) => &arg0[index][0],
+            Self::ThreeD(arg0) => &arg0[index][0][0],
+            Self::FourD(arg0) => &arg0[index][0][0][0],
+        }
+    }
+}
+
+impl Index<RangeFrom<usize>> for ArrayData {
+    type Output = [f64];
+
+    fn index(&self, index: RangeFrom<usize>) -> &Self::Output {
+        match self {
+            Self::OneD(arg0) => &arg0[index],
+            Self::TwoD(arg0) => &arg0[index][0],
+            Self::ThreeD(arg0) => &arg0[index][0][0],
+            Self::FourD(arg0) => &arg0[index][0][0][0],
+        }
+    }
+}
+
+impl Iterator for ArrayData {
+    type Item = f64;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::OneD(arg0) => arg0.pop(),
+            Self::TwoD(arg0) => arg0.pop().map(|arg1| arg1[0]),
+            Self::ThreeD(arg0) => arg0.pop().map(|arg1| arg1[0][0]),
+            Self::FourD(arg0) => arg0.pop().map(|arg1| arg1[0][0][0]),
+        }
+    }
+}
+
+impl ArrayData {
+    fn iter(&self) -> ArrayData {
+        match self {
+            Self::OneD(arg0) => ArrayData::OneD(arg0.iter().cloned().collect()),
+            Self::TwoD(arg0) => ArrayData::TwoD(
+                arg0.iter()
+                    .map(|arg1| arg1.iter().cloned().collect())
+                    .collect(),
+            ),
+            Self::ThreeD(arg0) => ArrayData::ThreeD(
+                arg0.iter()
+                    .map(|arg1| {
+                        arg1.iter()
+                            .map(|arg2| arg2.iter().cloned().collect())
+                            .collect()
+                    })
+                    .collect(),
+            ),
+            Self::FourD(arg0) => ArrayData::FourD(
+                arg0.iter()
+                    .map(|arg1| {
+                        arg1.iter()
+                            .map(|arg2| {
+                                arg2.iter()
+                                    .map(|arg3| arg3.iter().cloned().collect())
+                                    .collect()
+                            })
+                            .collect()
+                    })
+                    .collect(),
+            ),
+        }
+    }
+}
+
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct ArrayND {
-    data: Vec<f64>,
+    data: ArrayData,
     pub max: f64,
     pub min: f64,
     shape: Vec<usize>,
@@ -49,7 +157,7 @@ impl ArrayND {
         ArrayND {
             shape: vec![data.len()],
             size: data.len(),
-            data,
+            data: ArrayData::OneD(data),
             min,
             max,
         }
@@ -70,7 +178,7 @@ impl ArrayND {
     /// ```
     pub fn sum(&self) -> f64 {
         if self.size > 1_000_000 {
-            self.par_sum()
+            self.seq_sum()
         } else {
             self.seq_sum()
         }
@@ -78,7 +186,36 @@ impl ArrayND {
 
     /// Seqential Sum used inside 1D Array
     pub fn seq_sum(&self) -> f64 {
-        self.data.iter().fold(0., |sum, &val| sum + val)
+        match &self.data {
+            ArrayData::OneD(arg0) => arg0.iter().sum(),
+            ArrayData::TwoD(arg0) => {
+                let mut total = 0.;
+                for arg1 in arg0.iter() {
+                    total += arg1.iter().sum::<f64>();
+                }
+                total
+            }
+            ArrayData::ThreeD(arg0) => {
+                let mut total = 0.;
+                for arg1 in arg0.iter() {
+                    for arg2 in arg1.iter() {
+                        total += arg2.iter().sum::<f64>();
+                    }
+                }
+                total
+            }
+            ArrayData::FourD(arg0) => {
+                let mut total = 0.;
+                for arg1 in arg0.iter() {
+                    for arg2 in arg1.iter() {
+                        for arg3 in arg2.iter() {
+                            total += arg3.iter().sum::<f64>();
+                        }
+                    }
+                }
+                total
+            }
+        }
     }
 
     #[cfg(target_family = "wasm")]
@@ -87,16 +224,36 @@ impl ArrayND {
         self.seq_sum()
     }
 
-    #[cfg(target_family = "unix")]
-    /// Parallel Sum used inside 1D Array
-    pub fn par_sum(&self) -> f64 {
-        self.data
-            .par_iter()
-            .fold(|| 0., |sum, &val| sum + val)
-            .collect::<Vec<f64>>()
-            .iter()
-            .fold(0., |sum, &val| sum + val)
-    }
+    // #[cfg(target_family = "unix")]
+    // /// Parallel Sum used inside 1D Array
+    // pub fn par_sum(&self) -> f64 {
+    //     match &self.data {
+    //         ArrayData::OneD(arg0) => arg0.par_iter().sum(),
+    //         ArrayData::TwoD(arg0) => {
+    //             arg0.par_iter().map(|arg1| arg1.sum()).sum()
+    //         }
+    //         ArrayData::ThreeD(arg0) => {
+    //             let mut total = 0.;
+    //             for arg1 in arg0.par_iter() {
+    //                 for arg2 in arg1.par_iter() {
+    //                     total += arg2.par_iter().sum::<f64>();
+    //                 }
+    //             }
+    //             total
+    //         }
+    //         ArrayData::FourD(arg0) => {
+    //             let mut total = 0.;
+    //             for arg1 in arg0.par_iter() {
+    //                 for arg2 in arg1.par_iter() {
+    //                     for arg3 in arg2.par_iter() {
+    //                         total += arg3.par_iter().sum::<f64>();
+    //                     }
+    //                 }
+    //             }
+    //             total
+    //         }
+    //     }
+    // }
 
     /// Generates a random 1D Array
     ///
@@ -124,9 +281,49 @@ impl ArrayND {
         ArrayND::new(data)
     }
 
-    pub fn add(mut self, num: f64) -> ArrayND {
-        self.data.iter_mut().for_each(|x| *x += num);
-        self
+    pub fn add(self, num: f64) -> ArrayND {
+        match self.data {
+            ArrayData::OneD(mut arg0) => {
+                arg0.iter_mut().for_each(|x| *x += num);
+                ArrayND {
+                    data: ArrayData::OneD(arg0),
+                    ..self
+                }
+            }
+            ArrayData::TwoD(mut arg0) => {
+                for arg1 in arg0.iter_mut() {
+                    arg1.iter_mut().for_each(|x| *x += num);
+                }
+                ArrayND {
+                    data: ArrayData::TwoD(arg0),
+                    ..self
+                }
+            },
+            ArrayData::ThreeD(mut arg0) => {
+                for arg1 in arg0.iter_mut() {
+                    for arg2 in arg1.iter_mut() {
+                        arg2.iter_mut().for_each(|x| *x += num);
+                    }
+                }
+                ArrayND {
+                    data: ArrayData::ThreeD(arg0),
+                    ..self
+                }
+            },
+            ArrayData::FourD(mut arg0) => {
+                for arg1 in arg0.iter_mut() {
+                    for arg2 in arg1.iter_mut() {
+                        for arg3 in arg2.iter_mut() {
+                            arg3.iter_mut().for_each(|x| *x += num);
+                        }
+                    }
+                }
+                ArrayND {
+                    data: ArrayData::FourD(arg0),
+                    ..self
+                }
+            },
+        }
     }
 
     pub fn to_string(&self) -> String {
@@ -146,11 +343,29 @@ impl ArrayND {
         }
         ArrayND::new(data)
     }
+
+    fn new2d(data: Vec<Vec<f64>>) -> ArrayND {
+        let min = 1.;
+        let max = 1.;
+        ArrayND {
+            shape: vec![data.len(), data[0].len().clone()],
+            data: ArrayData::TwoD(data),
+            size: 1,
+            min,
+            max
+        }
+    }
 }
 
 #[wasm_bindgen]
 pub fn asarray(data: Vec<f64>) -> ArrayND {
     ArrayND::new(data)
+}
+
+#[wasm_bindgen]
+pub fn asarray2d(data: &JsValue) -> ArrayND {
+    let data: Vec<Vec<f64>> = data.into_serde().unwrap();
+    ArrayND::new2d(data)
 }
 
 fn find_min<T: Copy + Zero + std::cmp::PartialOrd>(data: &[f64]) -> f64 {
@@ -176,326 +391,6 @@ impl Display for ArrayND {
             self.max,
             &self.data[..100]
         )
-    }
-}
-
-impl Add<ArrayND> for ArrayND {
-    type Output = ArrayND;
-
-    fn add(self, rhs: Self) -> ArrayND {
-        let lhs = self;
-        assert_eq!(lhs.shape[0], rhs.shape[0]);
-        let data: Vec<(f64, f64)> = lhs.data.into_iter().zip(rhs.data).collect();
-        let data = data.iter().map(|(i, j)| i.clone() + j.clone()).collect();
-        let min = {
-            if lhs.min < rhs.min {
-                lhs.min
-            } else {
-                rhs.min
-            }
-        };
-        let max = {
-            if lhs.max < rhs.max {
-                lhs.max
-            } else {
-                rhs.max
-            }
-        };
-
-        ArrayND {
-            shape: vec![lhs.size],
-            size: lhs.size,
-            data,
-            min,
-            max,
-        }
-    }
-}
-
-impl Sub<ArrayND> for ArrayND {
-    type Output = ArrayND;
-
-    fn sub(self, rhs: Self) -> ArrayND {
-        let lhs = self;
-        assert_eq!(lhs.shape[0], rhs.shape[0]);
-        let data: Vec<(f64, f64)> = lhs.data.into_iter().zip(rhs.data).collect();
-        let data = data.iter().map(|(i, j)| i.clone() - j.clone()).collect();
-        let min = {
-            if lhs.min < rhs.min {
-                lhs.min
-            } else {
-                rhs.min
-            }
-        };
-        let max = {
-            if lhs.max < rhs.max {
-                lhs.max
-            } else {
-                rhs.max
-            }
-        };
-
-        ArrayND {
-            shape: vec![lhs.shape[0]],
-            size: lhs.size,
-            data,
-            min,
-            max,
-        }
-    }
-}
-
-impl Mul<ArrayND> for ArrayND {
-    type Output = ArrayND;
-
-    fn mul(self, rhs: Self) -> ArrayND {
-        let lhs = self;
-        assert_eq!(lhs.shape[0], rhs.shape[0]);
-        let data: Vec<(f64, f64)> = lhs.data.into_iter().zip(rhs.data).collect();
-        let data = data.iter().map(|(i, j)| i.clone() * j.clone()).collect();
-        let min = {
-            if lhs.min < rhs.min {
-                lhs.min
-            } else {
-                rhs.min
-            }
-        };
-        let max = {
-            if lhs.max < rhs.max {
-                lhs.max
-            } else {
-                rhs.max
-            }
-        };
-
-        ArrayND {
-            shape: vec![lhs.shape[0]],
-            size: lhs.size,
-            data,
-            min,
-            max,
-        }
-    }
-}
-
-impl Div<ArrayND> for ArrayND {
-    type Output = ArrayND;
-
-    fn div(self, rhs: Self) -> ArrayND {
-        let lhs = self;
-        assert_eq!(lhs.shape[0], rhs.shape[0]);
-        let data: Vec<(f64, f64)> = lhs.data.into_iter().zip(rhs.data).collect();
-        let data = data.iter().map(|(i, j)| i.clone() / j.clone()).collect();
-        let min = {
-            if lhs.min < rhs.min {
-                lhs.min
-            } else {
-                rhs.min
-            }
-        };
-        let max = {
-            if lhs.max < rhs.max {
-                lhs.max
-            } else {
-                rhs.max
-            }
-        };
-
-        ArrayND {
-            shape: vec![lhs.shape[0]],
-            size: lhs.size,
-            data,
-            min,
-            max,
-        }
-    }
-}
-
-impl Add<Vec<f64>> for ArrayND {
-    type Output = ArrayND;
-
-    fn add(self, rhs: Vec<f64>) -> ArrayND {
-        let lhs = self;
-        assert_eq!(lhs.shape[0], rhs.len());
-        let data: Vec<(f64, f64)> = lhs.data.into_iter().zip(rhs).collect();
-        let data: Vec<f64> = data.iter().map(|(i, j)| i.clone() + j.clone()).collect();
-        let rhs_min = find_min::<f64>(&data);
-        let rhs_max = find_min::<f64>(&data);
-        let min = {
-            if lhs.min < rhs_min {
-                lhs.min
-            } else {
-                rhs_min
-            }
-        };
-        let max = {
-            if lhs.max < rhs_max {
-                lhs.max
-            } else {
-                rhs_max
-            }
-        };
-
-        ArrayND {
-            shape: vec![lhs.shape[0]],
-            size: lhs.size,
-            data,
-            min,
-            max,
-        }
-    }
-}
-impl Sub<Vec<f64>> for ArrayND {
-    type Output = ArrayND;
-
-    fn sub(self, rhs: Vec<f64>) -> ArrayND {
-        let lhs = self;
-        assert_eq!(lhs.shape[0], rhs.len());
-        let data: Vec<(f64, f64)> = lhs.data.into_iter().zip(rhs).collect();
-        let data: Vec<f64> = data.iter().map(|(i, j)| i.clone() - j.clone()).collect();
-        let rhs_min = find_min::<f64>(&data);
-        let rhs_max = find_min::<f64>(&data);
-        let min = {
-            if lhs.min < rhs_min {
-                lhs.min
-            } else {
-                rhs_min
-            }
-        };
-        let max = {
-            if lhs.max < rhs_max {
-                lhs.max
-            } else {
-                rhs_max
-            }
-        };
-
-        ArrayND {
-            shape: vec![lhs.shape[0]],
-            size: lhs.size,
-            data,
-            min,
-            max,
-        }
-    }
-}
-impl Mul<Vec<f64>> for ArrayND {
-    type Output = ArrayND;
-
-    fn mul(self, rhs: Vec<f64>) -> ArrayND {
-        let lhs = self;
-        assert_eq!(lhs.shape[0], rhs.len());
-        let data: Vec<(f64, f64)> = lhs.data.into_iter().zip(rhs).collect();
-        let data: Vec<f64> = data.iter().map(|(i, j)| i.clone() * j.clone()).collect();
-        let rhs_min = find_min::<f64>(&data);
-        let rhs_max = find_min::<f64>(&data);
-        let min = {
-            if lhs.min < rhs_min {
-                lhs.min
-            } else {
-                rhs_min
-            }
-        };
-        let max = {
-            if lhs.max < rhs_max {
-                lhs.max
-            } else {
-                rhs_max
-            }
-        };
-
-        ArrayND {
-            shape: vec![lhs.shape[0]],
-            size: lhs.size,
-            data,
-            min,
-            max,
-        }
-    }
-}
-impl Div<Vec<f64>> for ArrayND {
-    type Output = ArrayND;
-
-    fn div(self, rhs: Vec<f64>) -> ArrayND {
-        let lhs = self;
-        assert_eq!(lhs.shape[0], rhs.len());
-        let data: Vec<(f64, f64)> = lhs.data.into_iter().zip(rhs).collect();
-        let data: Vec<f64> = data.iter().map(|(i, j)| i.clone() / j.clone()).collect();
-        let rhs_min = find_min::<f64>(&data);
-        let rhs_max = find_min::<f64>(&data);
-        let min = {
-            if lhs.min < rhs_min {
-                lhs.min
-            } else {
-                rhs_min
-            }
-        };
-        let max = {
-            if lhs.max < rhs_max {
-                lhs.max
-            } else {
-                rhs_max
-            }
-        };
-
-        ArrayND {
-            shape: vec![lhs.shape[0]],
-            size: lhs.size,
-            data,
-            min,
-            max,
-        }
-    }
-}
-
-impl Add<f64> for ArrayND {
-    type Output = ArrayND;
-
-    fn add(mut self, rhs: f64) -> ArrayND {
-        for el in self.data.iter_mut() {
-            *el += rhs
-        }
-        self.min += rhs;
-        self.max += rhs;
-        self
-    }
-}
-
-impl Sub<f64> for ArrayND {
-    type Output = ArrayND;
-
-    fn sub(mut self, rhs: f64) -> ArrayND {
-        for el in self.data.iter_mut() {
-            *el -= rhs
-        }
-        self.min -= rhs;
-        self.max -= rhs;
-        self
-    }
-}
-impl Mul<f64> for ArrayND {
-    type Output = ArrayND;
-
-    fn mul(mut self, rhs: f64) -> ArrayND {
-        for el in self.data.iter_mut() {
-            *el *= rhs
-        }
-        self.min *= rhs;
-        self.max *= rhs;
-        self
-    }
-}
-
-impl Div<f64> for ArrayND {
-    type Output = ArrayND;
-
-    fn div(mut self, rhs: f64) -> ArrayND {
-        for el in self.data.iter_mut() {
-            *el /= rhs
-        }
-        self.min /= rhs;
-        self.max /= rhs;
-        self
     }
 }
 
@@ -525,16 +420,6 @@ impl Debug for ArrayND {
     }
 }
 
-impl PartialEq<ArrayND> for ArrayND {
-    fn eq(&self, other: &ArrayND) -> bool {
-        self.data == other.data
-    }
-
-    fn ne(&self, other: &ArrayND) -> bool {
-        self.data == other.data
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::ArrayND;
@@ -548,138 +433,12 @@ mod tests {
     }
 
     #[test]
-    // fn add_integer() {
-    //     let data_addition_mult = get_array_1d_integer()
-    //         + get_array_1d_integer()
-    //         + get_array_1d_integer()
-    //         + get_array_1d_integer()
-    //         + get_array_1d_integer();
-    //     let array1 = get_array_1d_integer();
-    //     let array2 = get_array_1d_integer();
-    //     let data_addition = array1.clone() + array2;
-
-    //     assert_eq!(data_addition, ArrayND::new(vec![2, 4, 6, 8, 10, 12, 14]));
-    //     assert_eq!(
-    //         array1.clone() + vec![1, 2, 3, 4, 5, 6, 7],
-    //         ArrayND::new(vec![2, 4, 6, 8, 10, 12, 14])
-    //     );
-    //     assert_eq!(array1 + 1, ArrayND::new(vec![2, 3, 4, 5, 6, 7, 8]));
-
-    //     let expected_array = ArrayND::new(vec![5, 10, 15, 20, 25, 30, 35]);
-    //     assert_eq!(data_addition_mult, expected_array);
-
-    //     let incorrect_array: ArrayND<i32> = ArrayND::new(vec![2, 4, 6, 8, 10, 12, 14, 16]);
-    //     assert_ne!(data_addition, incorrect_array);
-
-    //     let incorrect_array = ArrayND::new(vec![2, 4, 6, 8, 10, 12, 123]);
-    //     assert_ne!(data_addition, incorrect_array)
-    // }
-    #[test]
-    fn add_float() {
-        let data_addition_mult = get_array_1d_float()
-            + get_array_1d_float()
-            + get_array_1d_float()
-            + get_array_1d_float()
-            + get_array_1d_float();
-        let array1 = get_array_1d_float();
-        let array2 = get_array_1d_float();
-        let data_addition = array1.clone() + array2;
-
-        assert_eq!(
-            data_addition,
-            ArrayND::new(vec![2., 4., 6., 8., 10., 12., 14.])
-        );
-        assert_eq!(
-            array1.clone() + vec![1., 2., 3., 4., 5., 6., 7.],
-            ArrayND::new(vec![2., 4., 6., 8., 10., 12., 14.])
-        );
-        assert_eq!(array1 + 1., ArrayND::new(vec![2., 3., 4., 5., 6., 7., 8.]));
-
-        let expected_array = ArrayND::new(vec![5., 10., 15., 20., 25., 30., 35.]);
-        assert_eq!(data_addition_mult, expected_array,);
-
-        let incorrect_array = ArrayND::new(vec![2., 4., 6., 8., 10., 12., 14., 16.]);
-        assert_ne!(data_addition, incorrect_array);
-
-        let incorrect_array = ArrayND::new(vec![2., 4., 6., 8., 10., 12., 123.]);
-        assert_ne!(data_addition, incorrect_array)
-    }
-
-    #[test]
-    fn sub_float() {
-        let array1 = get_array_1d_float();
-        let array2 = get_array_1d_float();
-
-        assert_eq!(
-            array1.clone() - array2,
-            ArrayND::new(vec![0., 0., 0., 0., 0., 0., 0.])
-        );
-        assert_eq!(
-            array1.clone() - vec![1., 2., 3., 4., 5., 6., 7.],
-            ArrayND::new(vec![0., 0., 0., 0., 0., 0., 0.])
-        );
-        assert_eq!(
-            array1.clone() - 2.,
-            ArrayND::new(vec![-1., 0., 1., 2., 3., 4., 5.])
-        );
-    }
-
-    #[test]
-    fn mul_float() {
-        let array1 = get_array_1d_float();
-        let array2 = get_array_1d_float();
-
-        assert_eq!(
-            array1.clone() * array2,
-            ArrayND::new(vec![1., 4., 9., 16., 25., 36., 49.])
-        );
-        assert_eq!(
-            array1.clone() * vec![1., 2., 3., 4., 5., 6., 7.],
-            ArrayND::new(vec![1., 4., 9., 16., 25., 36., 49.])
-        );
-        assert_eq!(
-            array1.clone() * 2.,
-            ArrayND::new(vec![2., 4., 6., 8., 10., 12., 14.])
-        );
-        assert_eq!(array1.clone() * 1., array1);
-    }
-
-    #[test]
-    fn div_float() {
-        let array1 = get_array_1d_float();
-        let array2 = get_array_1d_float();
-
-        assert_eq!(
-            array1.clone() / array2,
-            ArrayND::new(vec![1., 1., 1., 1., 1., 1., 1.])
-        );
-        assert_eq!(
-            array1.clone() / vec![1., 2., 3., 4., 5., 6., 7.],
-            ArrayND::new(vec![1., 1., 1., 1., 1., 1., 1.])
-        );
-        assert_eq!(
-            array1.clone() / 2.,
-            ArrayND::new(vec![0.5, 1., 1.5, 2., 2.5, 3., 3.5])
-        );
-        assert_eq!(array1.clone() / 1., array1);
-    }
-
-    #[test]
     fn sum_float() {
         let array1 = get_array_1d_float();
 
         assert_eq!(array1.sum(), 28.);
         assert_eq!(array1.seq_sum(), 28.);
-        assert_eq!(array1.par_sum(), 28.);
-    }
-
-    #[test]
-    fn mixed_operation_float() {
-        let array1 = get_array_1d_float();
-        let array = array1.clone()
-            + ((array1.clone() * 2.) - array1.clone()) / ((array1.clone() + array1.clone()) / 2.);
-
-        assert_eq!(array, ArrayND::new(vec![2., 3., 4., 5., 6., 7., 8.]));
+        // assert_eq!(array1.par_sum(), 28.);
     }
 
     #[test]

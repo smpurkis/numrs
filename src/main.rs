@@ -14,7 +14,7 @@ fn main() {
     println!("sum seq: {:?}", array.seq_sum());
     println!("Time Taken: {:?}", now.elapsed());
     let now = Instant::now();
-    println!("sum par: {:?}", array.par_sum());
+    println!("sum par: {:?}", array.seq_sum());
     println!("Time Taken: {:?}", now.elapsed());
     let now = Instant::now();
     println!("sum combo: {:?}", array.sum());
