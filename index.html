@@ -10,11 +10,27 @@
 
 <body>
     <script type="module">
-        import init, { asarray, asarray2d, ArrayND } from "./pkg/numrs.js";
+        //import init, { asarray, asarray2d, asarray3d, ArrayND } from "./pkg/numrs.js";
+        //import { asarray_js_wrap } from "./pkg/numrs.js"
+
+        import init, { asarray1d, asarray2d, asarray3d, ArrayND, asarray } from "./pkg/numrs.js";
         function generate_array_random_numbers(n) {
             let arr = []
             for (let i = 0; i < n; i++) {
                 arr.push(Math.random())
+            }
+            return arr;
+        }
+
+        function generate_array2d_random_numbers(shape=[100, 100]) {
+            let arr = []
+            console.log(shape)
+            for (let i = 0; i < shape[0]; i++) {
+                let innerArr = []
+                for (let j = 0; j < shape[1]; j++) {
+                    innerArr.push(Math.random())
+                }
+                arr.push(innerArr)
             }
             return arr;
         }
@@ -28,41 +44,37 @@
                 function get_sum(array) {
                     return array.reduce((a, b) => a + b)
                 }
-
                 
-                let myArr = new ArrayND([1,2,3,4,5,6,7])
-                let myArr2 = asarray([7,6,5,3,4,3,2])
+                function get_sum2d(array) {
+                    let total = 0
+                    for (let i = 0; i < array.length; i++) {
+                        total += get_sum(array[i])
+                    }
+                    return total
+                }
 
-                let myArr2d = asarray2d([[1,2,3], [4,5,6], [7,8,9]])
-                console.log("myArr2d", myArr2d.to_string())
-                console.log("myArr2d", myArr2d.sum())
-
-                console.log("myArr", myArr.to_string())
-                console.log("myArr2", myArr2.to_string())
-                console.log("myArr", myArr.sum())
-                let sum_arr = myArr.add(1.5)
-                console.log("sum_arr", sum_arr.to_string())
-
-                let tot = ArrayND.random(2)
-                console.log("sum_arr", tot.to_string())
-
+                // generate random number arrays
 
                 let s = Date.now();
-                let arr = generate_array_random_numbers(10_000_000)
+                let arr1 = generate_array_random_numbers(1_000_000)
                 let e = Date.now();
-                console.log("time", e - s)
+                console.log("generate random 1st time", e - s)
 
-                let s2 = Date.now();
-                let arr2 = ArrayND.random(10_000_000)
-                let e2 = Date.now();
-                console.log("time2", e2 - s2)
-                
                 let s3 = Date.now();
-                let arr3 = generate_array_random_numbers(10_000_000)
+                let arr3 = generate_array_random_numbers(1_000_000)
                 arr3 = asarray(arr3)
                 let e3 = Date.now();
-                console.log("time3", e3 - s3)
+                console.log("generate random 2nd time", e3 - s3)
+
+                let s2 = Date.now();
+                let arr2 = ArrayND.random(1_000_000)
+                let e2 = Date.now();
+                console.log("generate random numrs", e2 - s2)
+
                 
+                // benchmark summing of arrays
+
+                // benchmark 1d array
 
                 s = Date.now();
                 //let array = [...Array(100_000_000).keys()]
@@ -70,6 +82,9 @@
                 let numrs_arr = new ArrayND(array)
                 let njarr = nj.array(array, "float32")
                 let iterations = 10_000
+
+                // numrs sum
+                console.log("\nnumrs sum")
 
                 let array_sum_wasm = numrs_arr.sum()
                 s = Date.now();
@@ -86,25 +101,26 @@
                 console.log(`wasm time taken ${Date.now() - s}ms`)
                 console.log("array_sum_wasm", array_sum_wasm)
 
-                
-
+                // numjs sum
+                console.log("\nnumjs sum")
 
                 let array_sum = njarr.sum()
                 s = Date.now();
                 for (let i = 0; i < iterations; i++) {
                     array_sum = njarr.sum()
                 }
-                console.log(`js time taken ${Date.now() - s}ms`)
-                console.log("nj array sum", array_sum)
+                console.log(`numjs time taken ${Date.now() - s}ms`)
+                console.log("numjs array sum", array_sum)
 
                 s = Date.now();
                 for (let i = 0; i < iterations; i++) {
                     array_sum = njarr.sum()
                 }
-                console.log(`js time taken ${Date.now() - s}ms`)
-                console.log("nj array sum", array_sum)
+                console.log(`numjs time taken ${Date.now() - s}ms`)
+                console.log("numjs array sum", array_sum)
 
-
+                // naive sum
+                console.log("\nnaive sum")
 
                 let array_sum2 = get_sum(array)
                 s = Date.now();
@@ -112,15 +128,78 @@
                     array_sum2 = get_sum(array)
                 }
                 console.log(`js time taken ${Date.now() - s}ms`)
-                console.log("array_sum", array_sum2)
+                console.log("naive array sum", array_sum2)
 
                 s = Date.now();
                 for (let i = 0; i < iterations; i++) {
                     array_sum2 = get_sum(array)
                }
                 console.log(`js time taken ${Date.now() - s}ms`)
-                console.log("array_sum", array_sum2)
+                console.log("naive array sum", array_sum2)
+
+
+
+                // benchmark 2d array
+
+                s = Date.now();
+                array = generate_array2d_random_numbers()
+                numrs_arr = asarray(array)
+                njarr = nj.array(array, "float32")
+                iterations = 10_000
+
+                // numrs sum
+                console.log("\nnumrs sum")
+
+                array_sum_wasm = numrs_arr.sum()
+                s = Date.now();
+                for (let i = 0; i < iterations; i++) {
+                    array_sum_wasm = numrs_arr.sum()
+                }
+                console.log(`wasm time taken ${Date.now() - s}ms`)
+                console.log("array_sum_wasm", array_sum_wasm)
                 
+                s = Date.now();
+                for (let i = 0; i < iterations; i++) {
+                    array_sum_wasm = numrs_arr.sum()
+                }
+                console.log(`wasm time taken ${Date.now() - s}ms`)
+                console.log("array_sum_wasm", array_sum_wasm)
+
+                // numjs sum
+                console.log("\nnumjs sum")
+
+                array_sum = njarr.sum()
+                s = Date.now();
+                for (let i = 0; i < iterations; i++) {
+                    array_sum = njarr.sum()
+                }
+                console.log(`numjs time taken ${Date.now() - s}ms`)
+                console.log("numjs array sum", array_sum)
+
+                s = Date.now();
+                for (let i = 0; i < iterations; i++) {
+                    array_sum = njarr.sum()
+                }
+                console.log(`numjs time taken ${Date.now() - s}ms`)
+                console.log("numjs array sum", array_sum)
+
+                // naive sum
+                console.log("\nnaive sum")
+
+                array_sum2 = get_sum(array)
+                s = Date.now();
+                for (let i = 0; i < iterations; i++) {
+                    array_sum2 = get_sum2d(array)
+                }
+                console.log(`js time taken ${Date.now() - s}ms`)
+                console.log("naive array sum", array_sum2)
+
+                s = Date.now();
+                for (let i = 0; i < iterations; i++) {
+                    array_sum2 = get_sum2d(array)
+               }
+                console.log(`js time taken ${Date.now() - s}ms`)
+                console.log("naive array sum", array_sum2)
             });
     </script>
 </body>

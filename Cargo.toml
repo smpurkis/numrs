@@ -23,3 +23,4 @@ rayon = "1.5.1"
 getrandom = { version = "0.2.3", features = ["js"] }
 serde = { version = "1.0.133", features = ["derive"] }
 wasm-bindgen = { version = "0.2.78", features = ["serde-serialize"] }
+web-sys = { version = "0.3.55", features = ["console"]}

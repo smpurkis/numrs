@@ -1,13 +1,14 @@
 use num_traits::Zero;
 use rand::Rng;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::{
     cmp::min,
     fmt::{Debug, Display},
     ops::{Add, Div, Index, Mul, Range, RangeFrom, RangeTo, Sub},
 };
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use web_sys::console;
 
 /// 1D Array
 ///
@@ -21,7 +22,6 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 /// let data: Vec<f64> = vec![1.0, 2.0, 3.0];
 /// let array: ArrayND = ArrayND::new(data);
 /// ```
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 enum ArrayData {
@@ -163,6 +163,57 @@ impl ArrayND {
         }
     }
 
+    fn new1d(data: Vec<f64>) -> ArrayND {
+        ArrayND::new(data)
+    }
+
+    fn new2d(data: Vec<Vec<f64>>) -> ArrayND {
+        let min: f64 = 0.;
+        let max: f64 = 0.;
+        let shape = vec![data.len(), data[0].len()];
+
+        ArrayND {
+            shape,
+            size: data.len(),
+            data: ArrayData::TwoD(data),
+            min,
+            max,
+        }
+    }
+
+    fn new3d(data: Vec<Vec<Vec<f64>>>) -> ArrayND {
+        let min: f64 = 0.;
+        let max: f64 = 0.;
+        let shape = vec![data.len(), data[0].len(), data[0][0].len()];
+
+        ArrayND {
+            shape,
+            size: data.len(),
+            data: ArrayData::ThreeD(data),
+            min,
+            max,
+        }
+    }
+
+    fn new4d(data: Vec<Vec<Vec<Vec<f64>>>>) -> ArrayND {
+        let min: f64 = 0.;
+        let max: f64 = 0.;
+        let shape = vec![
+            data.len(),
+            data[0].len(),
+            data[0][0].len(),
+            data[0][0][0].len(),
+        ];
+
+        ArrayND {
+            shape,
+            size: data.len(),
+            data: ArrayData::FourD(data),
+            min,
+            max,
+        }
+    }
+
     /// Sums the data inside 1D Array
     ///
     /// Uses a sequential sum when the Array size is small (less than 1 million)
@@ -298,7 +349,7 @@ impl ArrayND {
                     data: ArrayData::TwoD(arg0),
                     ..self
                 }
-            },
+            }
             ArrayData::ThreeD(mut arg0) => {
                 for arg1 in arg0.iter_mut() {
                     for arg2 in arg1.iter_mut() {
@@ -309,7 +360,7 @@ impl ArrayND {
                     data: ArrayData::ThreeD(arg0),
                     ..self
                 }
-            },
+            }
             ArrayData::FourD(mut arg0) => {
                 for arg1 in arg0.iter_mut() {
                     for arg2 in arg1.iter_mut() {
@@ -322,14 +373,55 @@ impl ArrayND {
                     data: ArrayData::FourD(arg0),
                     ..self
                 }
-            },
+            }
         }
     }
 
     pub fn to_string(&self) -> String {
         let mut string = String::new();
-        for i in 0..self.size {
-            string.push_str(&format!("{} ", self.data[i]));
+        match &self.data {
+            ArrayData::OneD(arg0) => {
+                for arg1 in arg0.iter() {
+                    string.push_str(&arg1.to_string());
+                    string.push_str(" ");
+                }
+            }
+            ArrayData::TwoD(arg0) => {
+                for arg1 in arg0.iter() {
+                    for arg2 in arg1.iter() {
+                        string.push_str(&arg2.to_string());
+                        string.push_str(" ");
+                    }
+                    string.push_str("\n");
+                }
+            }
+            ArrayData::ThreeD(arg0) => {
+                for arg1 in arg0.iter() {
+                    for arg2 in arg1.iter() {
+                        for arg3 in arg2.iter() {
+                            string.push_str(&arg3.to_string());
+                            string.push_str(" ");
+                        }
+                        string.push_str("\n");
+                    }
+                    string.push_str("\n");
+                }
+            }
+            ArrayData::FourD(arg0) => {
+                for arg1 in arg0.iter() {
+                    for arg2 in arg1.iter() {
+                        for arg3 in arg2.iter() {
+                            for arg4 in arg3.iter() {
+                                string.push_str(&arg4.to_string());
+                                string.push_str(" ");
+                            }
+                            string.push_str("\n");
+                        }
+                        string.push_str("\n");
+                    }
+                    string.push_str("\n");
+                }
+            }
         }
         string
     }
@@ -343,22 +435,10 @@ impl ArrayND {
         }
         ArrayND::new(data)
     }
-
-    fn new2d(data: Vec<Vec<f64>>) -> ArrayND {
-        let min = 1.;
-        let max = 1.;
-        ArrayND {
-            shape: vec![data.len(), data[0].len().clone()],
-            data: ArrayData::TwoD(data),
-            size: 1,
-            min,
-            max
-        }
-    }
 }
 
 #[wasm_bindgen]
-pub fn asarray(data: Vec<f64>) -> ArrayND {
+pub fn asarray1d(data: Vec<f64>) -> ArrayND {
     ArrayND::new(data)
 }
 
@@ -367,6 +447,33 @@ pub fn asarray2d(data: &JsValue) -> ArrayND {
     let data: Vec<Vec<f64>> = data.into_serde().unwrap();
     ArrayND::new2d(data)
 }
+#[wasm_bindgen]
+pub fn asarray3d(data: &JsValue) -> ArrayND {
+    let data: Vec<Vec<Vec<f64>>> = data.into_serde().unwrap();
+    ArrayND::new3d(data)
+}
+#[wasm_bindgen]
+pub fn asarray4d(data: &JsValue) -> ArrayND {
+    let data: Vec<Vec<Vec<Vec<f64>>>> = data.into_serde().unwrap();
+    ArrayND::new4d(data)
+}
+
+// #[wasm_bindgen]
+// pub fn asarray_all(data: &JsValue) -> ArrayND {
+//     unsafe {
+//         console::log_1(&"asarray_all 0".into());
+//     }
+//     let data: ArrayData = data.into_serde().unwrap();
+//     unsafe {
+//         console::log_1(&"asarray_all 1".into());
+//     }
+//     match data {
+//         ArrayData::OneD(arg0) => ArrayND::new1d(arg0),
+//         ArrayData::TwoD(arg0) => ArrayND::new2d(arg0),
+//         ArrayData::ThreeD(arg0) => ArrayND::new3d(arg0),
+//         ArrayData::FourD(arg0) => ArrayND::new4d(arg0),
+//     }
+// }
 
 fn find_min<T: Copy + Zero + std::cmp::PartialOrd>(data: &[f64]) -> f64 {
     data.iter()
