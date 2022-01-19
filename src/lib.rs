@@ -484,6 +484,16 @@ impl ArrayND {
         ArrayND::new(data)
     }
 
+    /// Generates a array of specified shape filled with value
+    ///
+    /// # Example
+    /// ```
+    /// use numrs::ArrayND;
+    /// let array: ArrayND = ArrayND::ones(vec![2, 2]);
+    /// assert_eq!(array.flatten(), vec![1., 1., 1., 1.]);
+    /// let array: ArrayND = ArrayND::fill(29., vec![3, 3]);
+    /// assert_eq!(array.flatten(), vec![29., 29., 29., 29., 29., 29., 29., 29., 29.]);
+    /// ```
     pub fn fill(value: f64, shape: Vec<usize>) -> ArrayND {
         let data: ArrayData = match shape.len() {
             1 => {
