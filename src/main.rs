@@ -8,7 +8,6 @@ use numrs::{asarray, ArrayND};
 fn main() {
 
     let array: ArrayND = ArrayND::random(100_000_000);
-    let array: ArrayND = asarray([[1,2,3], [4,5,6], [7,8,9]]);
     println!("{:?}", array);
     let now = Instant::now();
     println!("sum seq: {:?}", array.seq_sum());

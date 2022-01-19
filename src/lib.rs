@@ -24,7 +24,7 @@ use web_sys::console;
 /// ```
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-enum ArrayData {
+pub enum ArrayData {
     OneD(Vec<f64>),
     TwoD(Vec<Vec<f64>>),
     ThreeD(Vec<Vec<Vec<f64>>>),
@@ -160,6 +160,15 @@ impl ArrayND {
             data: ArrayData::OneD(data),
             min,
             max,
+        }
+    }
+
+    fn _new(data: ArrayData) -> ArrayND {
+        match data {
+            ArrayData::OneD(arg0) => ArrayND::new1d(arg0),
+            ArrayData::TwoD(arg0) => ArrayND::new2d(arg0),
+            ArrayData::ThreeD(arg0) => ArrayND::new3d(arg0),
+            ArrayData::FourD(arg0) => ArrayND::new4d(arg0),
         }
     }
 
@@ -377,6 +386,15 @@ impl ArrayND {
         }
     }
 
+    /// Convert an array to a nice matrix string output
+    ///
+    /// # Example
+    /// ```
+    /// use numrs::ArrayND;
+    /// let array: ArrayND = ArrayND::new(vec![1.0, 2.0, 3.0]);
+    /// let array_string: String = array.to_string();
+    /// assert_eq!(array_string, "1 2 3 ");
+    /// ```
     pub fn to_string(&self) -> String {
         let mut string = String::new();
         match &self.data {
@@ -426,6 +444,36 @@ impl ArrayND {
         string
     }
 
+    /// Flatten ndarray to 1d array
+    ///
+    /// # Example
+    /// ```
+    /// use numrs::{asarray,ArrayData,ArrayND};
+    /// let array: ArrayND = asarray(ArrayData::TwoD(vec![vec![1.0, 2.0, 3.0], vec![4.0, 5.0, 6.0]]));
+    /// let array_1d: Vec<f64> = array.flatten();
+    /// assert_eq!(array_1d, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    /// ```
+    pub fn flatten(&self) -> Vec<f64> {
+        match &self.data {
+            ArrayData::OneD(arg0) => arg0.clone(),
+            ArrayData::TwoD(arg0) => arg0.iter().flatten().cloned().collect(),
+            ArrayData::ThreeD(arg0) => {
+                arg0.iter().flatten().flatten().cloned().collect()
+            }
+            ArrayData::FourD(arg0) => {
+                arg0.iter().flatten().flatten().flatten().cloned().collect()
+            }
+        }
+    }
+
+    /// Generates a random 1D Array with a range
+    ///
+    /// # Example
+    /// ```
+    /// use numrs::ArrayND;
+    /// let array: ArrayND = ArrayND::arange(0., 10., 1.);
+    /// assert_eq!(array.flatten(), vec![0., 1., 2., 3., 4., 5., 6., 7., 8., 9.]);
+    /// ```
     pub fn arange(start: f64, stop: f64, step: f64) -> ArrayND {
         let mut data: Vec<f64> = Vec::new();
         let mut i = start;
@@ -434,6 +482,44 @@ impl ArrayND {
             i += step;
         }
         ArrayND::new(data)
+    }
+
+    pub fn fill(value: f64, shape: Vec<usize>) -> ArrayND {
+        let data: ArrayData = match shape.len() {
+            1 => {
+                ArrayData::OneD(vec![value; shape[0]])
+            },
+            2 => {
+                ArrayData::TwoD(vec![vec![value; shape[1]]; shape[0]])
+            },
+            3 => {
+                ArrayData::ThreeD(vec![vec![vec![value; shape[2]]; shape[1]]; shape[0]])
+            },
+            4 => {
+                ArrayData::FourD(vec![vec![vec![vec![value; shape[3]]; shape[2]]; shape[1]]; shape[0]])
+            }
+            _ => {
+                panic!("ArrayND::fill() only supports 1D, 2D, 3D, and 4D arrays")
+            }
+        };
+        ArrayND::_new(data)
+    }
+
+    pub fn zeros(shape: Vec<usize>) -> ArrayND {
+        ArrayND::fill(0., shape)
+    }
+
+    pub fn ones(shape: Vec<usize>) -> ArrayND {
+        ArrayND::fill(1., shape)
+    }
+}
+
+pub fn asarray(data: ArrayData) -> ArrayND {
+    match data {
+        ArrayData::OneD(arg0) => ArrayND::new1d(arg0),
+        ArrayData::TwoD(arg0) => ArrayND::new2d(arg0),
+        ArrayData::ThreeD(arg0) => ArrayND::new3d(arg0),
+        ArrayData::FourD(arg0) => ArrayND::new4d(arg0),
     }
 }
 
@@ -529,39 +615,52 @@ impl Debug for ArrayND {
 
 #[cfg(test)]
 mod tests {
-    use crate::ArrayND;
+    use super::{asarray, ArrayND,ArrayData};
 
-    // fn get_array_1d_integer() -> ArrayND {
-    //     ArrayND::new(vec![1, 2, 3, 4, 5, 6, 7])
-    // }
 
     fn get_array_1d_float() -> ArrayND {
         ArrayND::new(vec![1., 2., 3., 4., 5., 6., 7.])
     }
 
+    fn get_array_2d_float() -> ArrayND {
+        ArrayND::new2d(vec![
+            vec![1., 2., 3.],
+            vec![4., 5., 6.],
+            vec![7., 8., 9.],
+        ])
+    }
+
+    fn get_array_3d_float() -> ArrayND {
+        ArrayND::new3d(vec![
+            vec![
+                vec![1., 2., 3.],
+                vec![4., 5., 6.],
+                vec![7., 8., 9.],
+            ],
+            vec![
+                vec![10., 11., 12.],
+                vec![13., 14., 15.],
+                vec![16., 17., 18.],
+            ],
+            vec![
+                vec![19., 20., 21.],
+                vec![22., 23., 24.],
+                vec![25., 26., 27.],
+            ],
+        ])
+    }
+
+
     #[test]
     fn sum_float() {
-        let array1 = get_array_1d_float();
+        let array1d = get_array_1d_float();
+        assert_eq!(array1d.sum(), 28.);
 
-        assert_eq!(array1.sum(), 28.);
-        assert_eq!(array1.seq_sum(), 28.);
-        // assert_eq!(array1.par_sum(), 28.);
+        let array2d = get_array_2d_float();
+        assert_eq!(array2d.sum(), 45.);
+
+        let array3d = get_array_3d_float();
+        assert_eq!(array3d.sum(), 378.);
     }
 
-    #[test]
-    fn random() {
-        let array1: ArrayND = ArrayND::random(3);
-        // let array2: ArrayND<i64> = ArrayND::random_range(3, 1., 10.);
-
-        assert_eq!(array1.shape, vec![3]);
-        assert!(array1.data[0] >= 0. && array1.data[0] < 1.);
-        // assert!(array2.data[0] >= 1 && array2.data[0] <= 10);
-    }
-
-    // #[test]
-    // fn arange_test() {
-    //     let array1 = arange(10);
-    //     let correct_array: ArrayND<i64> = ArrayND::new(vec![1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    //     assert_eq!(array1, correct_array);
-    // }
 }
