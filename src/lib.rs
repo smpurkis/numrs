@@ -1,4 +1,4 @@
-use num_traits::Zero;
+use num_traits::{zero, Zero};
 use rand::Rng;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
@@ -10,6 +10,12 @@ use std::{
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use web_sys::console;
 
+// constants
+const PI: f64 = std::f64::consts::PI;
+const TAU: f64 = 2.0 * PI;
+const E: f64 = std::f64::consts::E;
+const SQRT_2: f64 = std::f64::consts::SQRT_2;
+
 /// 1D Array
 ///
 ///
@@ -18,9 +24,9 @@ use web_sys::console;
 ///
 /// # Example
 /// ```
-/// use numrs::ArrayND;
+/// use numrs::{ArrayND,ArrayData, asarray};
 /// let data: Vec<f64> = vec![1.0, 2.0, 3.0];
-/// let array: ArrayND = ArrayND::new(data);
+/// let array: ArrayND = asarray(ArrayData::OneD(data));
 /// ```
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -136,33 +142,11 @@ pub struct ArrayND {
     pub max: f64,
     pub min: f64,
     shape: Vec<usize>,
-    size: usize,
+    pub size: usize,
 }
 
 #[wasm_bindgen]
 impl ArrayND {
-    /// Creates a new 1D Array
-    ///
-    /// # Example
-    /// ```
-    /// use numrs::ArrayND;
-    /// let data: Vec<f64> = vec![1.0, 2.0, 3.0];
-    /// let array: ArrayND = ArrayND::new(data);
-    /// ```
-    #[wasm_bindgen(constructor)]
-    pub fn new(data: Vec<f64>) -> ArrayND {
-        let min: f64 = find_min::<f64>(&data);
-        let max: f64 = find_max::<f64>(&data);
-
-        ArrayND {
-            shape: vec![data.len()],
-            size: data.len(),
-            data: ArrayData::OneD(data),
-            min,
-            max,
-        }
-    }
-
     fn _new(data: ArrayData) -> ArrayND {
         match data {
             ArrayData::OneD(arg0) => ArrayND::new1d(arg0),
@@ -173,53 +157,147 @@ impl ArrayND {
     }
 
     fn new1d(data: Vec<f64>) -> ArrayND {
-        ArrayND::new(data)
-    }
-
-    fn new2d(data: Vec<Vec<f64>>) -> ArrayND {
-        let min: f64 = 0.;
-        let max: f64 = 0.;
-        let shape = vec![data.len(), data[0].len()];
+        let size = data.len();
+        let shape = vec![size];
+        let array_data = ArrayData::OneD(data);
+        let min: f64 = find_min(&array_data);
+        let max: f64 = find_max(&array_data);
 
         ArrayND {
             shape,
-            size: data.len(),
-            data: ArrayData::TwoD(data),
+            size,
+            data: array_data,
+            min,
+            max,
+        }
+    }
+
+    fn new2d(data: Vec<Vec<f64>>) -> ArrayND {
+        let shape = vec![data.len(), data[0].len()];
+        let size = data.len() * data[0].len();
+        let array_data = ArrayData::TwoD(data);
+        let min: f64 = find_min(&array_data);
+        let max: f64 = find_max(&array_data);
+
+        ArrayND {
+            shape,
+            size,
+            data: array_data,
             min,
             max,
         }
     }
 
     fn new3d(data: Vec<Vec<Vec<f64>>>) -> ArrayND {
-        let min: f64 = 0.;
-        let max: f64 = 0.;
         let shape = vec![data.len(), data[0].len(), data[0][0].len()];
+        let size = data.len() * data[0].len() * data[0][0].len();
+        let array_data = ArrayData::ThreeD(data);
+        let min: f64 = find_min(&array_data);
+        let max: f64 = find_max(&array_data);
 
         ArrayND {
             shape,
-            size: data.len(),
-            data: ArrayData::ThreeD(data),
+            size,
+            data: array_data,
             min,
             max,
         }
     }
 
     fn new4d(data: Vec<Vec<Vec<Vec<f64>>>>) -> ArrayND {
-        let min: f64 = 0.;
-        let max: f64 = 0.;
         let shape = vec![
             data.len(),
             data[0].len(),
             data[0][0].len(),
             data[0][0][0].len(),
         ];
+        let size = data.len() * data[0].len() * data[0][0].len() * data[0][0][0].len();
+        let array_data = ArrayData::FourD(data);
+        let min: f64 = find_min(&array_data);
+        let max: f64 = find_max(&array_data);
 
         ArrayND {
             shape,
-            size: data.len(),
-            data: ArrayData::FourD(data),
+            size,
+            data: array_data,
             min,
             max,
+        }
+    }
+
+    #[wasm_bindgen(js_name = "getShape")]
+    pub fn get_shape(&self) -> Vec<usize> {
+        self.shape.clone()
+    }
+
+    pub fn reshape(&mut self, shape: Vec<usize>) {
+        let new_size: usize = shape.iter().product();
+        if self.size != new_size {
+            panic!("Cannot reshape array to new shape with different size");
+        }
+        match shape.len() {
+            1 => {
+                let flattened_data = &self.flatten();
+                let mut new_data = vec![];
+                for i in 0..shape[0] {
+                    new_data.push(flattened_data[i]);
+                }
+                self.data = ArrayData::OneD(new_data);
+            }
+            2 => {
+                let flattened_data = &self.flatten();
+                let mut new_data = vec![];
+                for i in 0..shape[0] {
+                    let mut row = vec![];
+                    for j in 0..shape[1] {
+                        row.push(flattened_data[i * shape[1] + j]);
+                    }
+                    new_data.push(row);
+                }
+                self.data = ArrayData::TwoD(new_data);
+            }
+            3 => {
+                let flattened_data = &self.flatten();
+                let mut new_data = vec![];
+                for i in 0..shape[0] {
+                    let mut row = vec![];
+                    for j in 0..shape[1] {
+                        let mut col = vec![];
+                        for k in 0..shape[2] {
+                            col.push(flattened_data[i * shape[1] * shape[2] + j * shape[2] + k]);
+                        }
+                        row.push(col);
+                    }
+                    new_data.push(row);
+                }
+                self.data = ArrayData::ThreeD(new_data);
+            }
+            4 => {
+                let flattened_data = &self.flatten();
+                let mut new_data = vec![];
+                for i in 0..shape[0] {
+                    let mut row = vec![];
+                    for j in 0..shape[1] {
+                        let mut col = vec![];
+                        for k in 0..shape[2] {
+                            let mut layer = vec![];
+                            for l in 0..shape[3] {
+                                layer.push(
+                                    flattened_data[i * shape[1] * shape[2] * shape[3]
+                                        + j * shape[2] * shape[3]
+                                        + k * shape[3]
+                                        + l],
+                                );
+                            }
+                            col.push(layer);
+                        }
+                        row.push(col);
+                    }
+                    new_data.push(row);
+                }
+                self.data = ArrayData::FourD(new_data);
+            }
+            _ => panic!("Cannot reshape array to new shape with more than 4 dimensions"),
         }
     }
 
@@ -231,9 +309,9 @@ impl ArrayND {
     ///
     /// # Example
     /// ```
-    /// use numrs::ArrayND;
+    /// use numrs::{ArrayND,ArrayData, asarray};
     /// let data: Vec<f64> = vec![1.0, 2.0, 3.0];
-    /// let array: ArrayND = ArrayND::new(data);
+    /// let array: ArrayND = asarray(ArrayData::OneD(data));
     /// assert_eq!(array.sum(), 6.0);
     /// ```
     pub fn sum(&self) -> f64 {
@@ -278,11 +356,11 @@ impl ArrayND {
         }
     }
 
-    #[cfg(target_family = "wasm")]
-    /// Seqential Sum used inside 1D Array
-    pub fn par_sum(&self) -> f64 {
-        self.seq_sum()
-    }
+    // #[cfg(target_family = "wasm")]
+    // /// Seqential Sum used inside 1D Array
+    // pub fn par_sum(&self) -> f64 {
+    //     self.seq_sum()
+    // }
 
     // #[cfg(target_family = "unix")]
     // /// Parallel Sum used inside 1D Array
@@ -320,12 +398,68 @@ impl ArrayND {
     /// # Example
     /// ```
     /// use numrs::ArrayND;
-    /// let array: ArrayND = ArrayND::random(10);
+    /// let array: ArrayND = ArrayND::random(vec![10]);
+    /// let array2d: ArrayND = ArrayND::random(vec![10, 10]);
+    /// assert_eq!(array.size, 10);
+    /// assert_eq!(array2d.size, 100);
     /// ```
-    pub fn random(size: usize) -> ArrayND {
+    pub fn random(size: Vec<usize>) -> ArrayND {
         let mut rng = rand::thread_rng();
-        let data: Vec<f64> = (0..size).map(|_| rng.gen::<f64>()).collect();
-        ArrayND::new(data)
+        match size.len() {
+            1 => {
+                let mut data: Vec<f64> = vec![];
+                for _ in 0..size[0] {
+                    data.push(rng.gen::<f64>());
+                }
+                ArrayND::new1d(data)
+            }
+            2 => {
+                let mut data: Vec<Vec<f64>> = vec![];
+                for _ in 0..size[0] {
+                    let mut row: Vec<f64> = vec![];
+                    for _ in 0..size[1] {
+                        row.push(rng.gen::<f64>());
+                    }
+                    data.push(row);
+                }
+                ArrayND::new2d(data)
+            }
+            3 => {
+                let mut data: Vec<Vec<Vec<f64>>> = vec![];
+                for _ in 0..size[0] {
+                    let mut row: Vec<Vec<f64>> = vec![];
+                    for _ in 0..size[1] {
+                        let mut col: Vec<f64> = vec![];
+                        for _ in 0..size[2] {
+                            col.push(rng.gen::<f64>());
+                        }
+                        row.push(col);
+                    }
+                    data.push(row);
+                }
+                ArrayND::new3d(data)
+            }
+            4 => {
+                let mut data: Vec<Vec<Vec<Vec<f64>>>> = vec![];
+                for _ in 0..size[0] {
+                    let mut row: Vec<Vec<Vec<f64>>> = vec![];
+                    for _ in 0..size[1] {
+                        let mut col: Vec<Vec<f64>> = vec![];
+                        for _ in 0..size[2] {
+                            let mut layer: Vec<f64> = vec![];
+                            for _ in 0..size[3] {
+                                layer.push(rng.gen::<f64>());
+                            }
+                            col.push(layer);
+                        }
+                        row.push(col);
+                    }
+                    data.push(row);
+                }
+                ArrayND::new4d(data)
+            }
+            _ => panic!("ArrayND::randomND: Array size must be 1, 2, 3, or 4 dimensions"),
+        }
     }
 
     /// Generates a random 1D Array with a range
@@ -338,63 +472,19 @@ impl ArrayND {
     pub fn random_range(size: usize, min: f64, max: f64) -> ArrayND {
         let mut rng = rand::thread_rng();
         let data: Vec<f64> = (0..size).map(|_| rng.gen_range(min..max)).collect();
-        ArrayND::new(data)
-    }
-
-    pub fn add(self, num: f64) -> ArrayND {
-        match self.data {
-            ArrayData::OneD(mut arg0) => {
-                arg0.iter_mut().for_each(|x| *x += num);
-                ArrayND {
-                    data: ArrayData::OneD(arg0),
-                    ..self
-                }
-            }
-            ArrayData::TwoD(mut arg0) => {
-                for arg1 in arg0.iter_mut() {
-                    arg1.iter_mut().for_each(|x| *x += num);
-                }
-                ArrayND {
-                    data: ArrayData::TwoD(arg0),
-                    ..self
-                }
-            }
-            ArrayData::ThreeD(mut arg0) => {
-                for arg1 in arg0.iter_mut() {
-                    for arg2 in arg1.iter_mut() {
-                        arg2.iter_mut().for_each(|x| *x += num);
-                    }
-                }
-                ArrayND {
-                    data: ArrayData::ThreeD(arg0),
-                    ..self
-                }
-            }
-            ArrayData::FourD(mut arg0) => {
-                for arg1 in arg0.iter_mut() {
-                    for arg2 in arg1.iter_mut() {
-                        for arg3 in arg2.iter_mut() {
-                            arg3.iter_mut().for_each(|x| *x += num);
-                        }
-                    }
-                }
-                ArrayND {
-                    data: ArrayData::FourD(arg0),
-                    ..self
-                }
-            }
-        }
+        ArrayND::new1d(data)
     }
 
     /// Convert an array to a nice matrix string output
     ///
     /// # Example
     /// ```
-    /// use numrs::ArrayND;
-    /// let array: ArrayND = ArrayND::new(vec![1.0, 2.0, 3.0]);
+    /// use numrs::{asarray,ArrayData,ArrayND};
+    /// let array: ArrayND = asarray(ArrayData::OneD(vec![1.0, 2.0, 3.0]));
     /// let array_string: String = array.to_string();
     /// assert_eq!(array_string, "1 2 3 ");
     /// ```
+    #[wasm_bindgen(js_name = toString)]
     pub fn to_string(&self) -> String {
         let mut string = String::new();
         match &self.data {
@@ -457,12 +547,8 @@ impl ArrayND {
         match &self.data {
             ArrayData::OneD(arg0) => arg0.clone(),
             ArrayData::TwoD(arg0) => arg0.iter().flatten().cloned().collect(),
-            ArrayData::ThreeD(arg0) => {
-                arg0.iter().flatten().flatten().cloned().collect()
-            }
-            ArrayData::FourD(arg0) => {
-                arg0.iter().flatten().flatten().flatten().cloned().collect()
-            }
+            ArrayData::ThreeD(arg0) => arg0.iter().flatten().flatten().cloned().collect(),
+            ArrayData::FourD(arg0) => arg0.iter().flatten().flatten().flatten().cloned().collect(),
         }
     }
 
@@ -481,7 +567,7 @@ impl ArrayND {
             data.push(i);
             i += step;
         }
-        ArrayND::new(data)
+        ArrayND::new1d(data)
     }
 
     /// Generates a array of specified shape filled with value
@@ -496,18 +582,13 @@ impl ArrayND {
     /// ```
     pub fn fill(value: f64, shape: Vec<usize>) -> ArrayND {
         let data: ArrayData = match shape.len() {
-            1 => {
-                ArrayData::OneD(vec![value; shape[0]])
-            },
-            2 => {
-                ArrayData::TwoD(vec![vec![value; shape[1]]; shape[0]])
-            },
-            3 => {
-                ArrayData::ThreeD(vec![vec![vec![value; shape[2]]; shape[1]]; shape[0]])
-            },
-            4 => {
-                ArrayData::FourD(vec![vec![vec![vec![value; shape[3]]; shape[2]]; shape[1]]; shape[0]])
-            }
+            1 => ArrayData::OneD(vec![value; shape[0]]),
+            2 => ArrayData::TwoD(vec![vec![value; shape[1]]; shape[0]]),
+            3 => ArrayData::ThreeD(vec![vec![vec![value; shape[2]]; shape[1]]; shape[0]]),
+            4 => ArrayData::FourD(vec![
+                vec![vec![vec![value; shape[3]]; shape[2]]; shape[1]];
+                shape[0]
+            ]),
             _ => {
                 panic!("ArrayND::fill() only supports 1D, 2D, 3D, and 4D arrays")
             }
@@ -522,6 +603,363 @@ impl ArrayND {
     pub fn ones(shape: Vec<usize>) -> ArrayND {
         ArrayND::fill(1., shape)
     }
+
+    fn apply_elementwise_with_other_array<F>(&self, other: ArrayND, mut func: F) -> ArrayND
+    where
+        F: FnMut(f64, f64) -> f64,
+    {
+        if self.shape != other.shape {
+            panic!("ArrayND::apply_elementwise_with_other_array() requires both arrays to have the same shape");
+        }
+        let self_array = self.clone();
+        let other_array = other.clone();
+
+        let stuff = (self_array, other_array);
+        match stuff {
+                (ArrayND { data: ArrayData::OneD(arg0), .. }, ArrayND { data: ArrayData::OneD(arg1), .. }) => {
+                    let mut data: Vec<f64> = Vec::new();
+                    for (arg0, arg1) in arg0.iter().zip(arg1.iter()) {
+                        data.push(func(*arg0, *arg1));
+                    }
+                    ArrayND::new1d(data)
+                }
+                (ArrayND { data: ArrayData::TwoD(arg0), .. }, ArrayND { data: ArrayData::TwoD(arg1), .. }) => {
+                    let mut data: Vec<Vec<f64>> = Vec::new();
+                    for (arg0, arg1) in arg0.iter().zip(arg1.iter()) {
+                        let mut row: Vec<f64> = Vec::new();
+                        for (arg0, arg1) in arg0.iter().zip(arg1.iter()) {
+                            row.push(func(*arg0, *arg1));
+                        }
+                        data.push(row);
+                    }
+                    ArrayND::new2d(data)
+                }
+                (ArrayND { data: ArrayData::ThreeD(arg0), .. }, ArrayND { data: ArrayData::ThreeD(arg1), .. }) => {
+                    let mut data: Vec<Vec<Vec<f64>>> = Vec::new();
+                    for (arg0, arg1) in arg0.iter().zip(arg1.iter()) {
+                        let mut second_array: Vec<Vec<f64>> = Vec::new();
+                        for (arg0, arg1) in arg0.iter().zip(arg1.iter()) {
+                            let mut row: Vec<f64> = Vec::new();
+                            for (arg0, arg1) in arg0.iter().zip(arg1.iter()) {
+                                row.push(func(*arg0, *arg1));
+                            }
+                            second_array.push(row);
+                        }
+                        data.push(second_array);
+                    }
+                    ArrayND::new3d(data)
+                },
+                (ArrayND { data: ArrayData::FourD(arg0), .. }, ArrayND { data: ArrayData::FourD(arg1), .. }) => {
+                    let mut data: Vec<Vec<Vec<Vec<f64>>>> = Vec::new();
+                    for (arg0, arg1) in arg0.iter().zip(arg1.iter()) {
+                        let mut third_array: Vec<Vec<Vec<f64>>> = Vec::new();
+                        for (arg0, arg1) in arg0.iter().zip(arg1.iter()) {
+                            let mut second_array: Vec<Vec<f64>> = Vec::new();
+                            for (arg0, arg1) in arg0.iter().zip(arg1.iter()) {
+                                let mut row: Vec<f64> = Vec::new();
+                                for (arg0, arg1) in arg0.iter().zip(arg1.iter()) {
+                                    row.push(func(*arg0, *arg1));
+                                }
+                                second_array.push(row);
+                            }
+                            third_array.push(second_array);
+                        }
+                        data.push(third_array);
+                    }
+                    ArrayND::new4d(data)
+                },
+                _ => panic!("ArrayND::apply_elementwise_with_other_array() only supports 1D, 2D, 3D, and 4D arrays"),
+            }
+    }
+
+    fn apply_inplace<F>(self, mut func: F) -> ArrayND
+    where
+        F: FnMut(f64) -> f64,
+    {
+        match self.data {
+            ArrayData::OneD(mut arg0) => {
+                for arg1 in arg0.iter_mut() {
+                    *arg1 = func(*arg1);
+                }
+                ArrayND::new1d(arg0)
+            }
+            ArrayData::TwoD(mut arg0) => {
+                for arg1 in arg0.iter_mut() {
+                    for arg2 in arg1.iter_mut() {
+                        *arg2 = func(*arg2);
+                    }
+                }
+                ArrayND::new2d(arg0)
+            }
+            ArrayData::ThreeD(mut arg0) => {
+                for arg1 in arg0.iter_mut() {
+                    for arg2 in arg1.iter_mut() {
+                        for arg3 in arg2.iter_mut() {
+                            *arg3 = func(*arg3);
+                        }
+                    }
+                }
+                ArrayND::new3d(arg0)
+            }
+            ArrayData::FourD(mut arg0) => {
+                for arg1 in arg0.iter_mut() {
+                    for arg2 in arg1.iter_mut() {
+                        for arg3 in arg2.iter_mut() {
+                            for arg4 in arg3.iter_mut() {
+                                *arg4 = func(*arg4);
+                            }
+                        }
+                    }
+                }
+                ArrayND::new4d(arg0)
+            }
+        }
+    }
+
+    fn apply_clone<F>(&self, mut func: F) -> ArrayND
+    where
+        F: FnMut(f64) -> f64,
+    {
+        let new_array = self.clone();
+        match new_array.data {
+            ArrayData::OneD(arg0) => {
+                let mut data: Vec<f64> = Vec::new();
+                for arg1 in arg0.iter() {
+                    data.push(func(*arg1));
+                }
+                ArrayND::new1d(data)
+            }
+            ArrayData::TwoD(arg0) => {
+                let mut data: Vec<Vec<f64>> = Vec::new();
+                for arg1 in arg0.iter() {
+                    let mut row = Vec::new();
+                    for arg2 in arg1.iter() {
+                        row.push(func(*arg2));
+                    }
+                    data.push(row);
+                }
+                ArrayND::new2d(data)
+            }
+            ArrayData::ThreeD(arg0) => {
+                let mut data: Vec<Vec<Vec<f64>>> = Vec::new();
+                for arg1 in arg0.iter() {
+                    let mut row = Vec::new();
+                    for arg2 in arg1.iter() {
+                        let mut col = Vec::new();
+                        for arg3 in arg2.iter() {
+                            col.push(func(*arg3));
+                        }
+                        row.push(col);
+                    }
+                    data.push(row);
+                }
+                ArrayND::new3d(data)
+            }
+            ArrayData::FourD(arg0) => {
+                let mut data: Vec<Vec<Vec<Vec<f64>>>> = Vec::new();
+                for arg1 in arg0.iter() {
+                    let mut row = Vec::new();
+                    for arg2 in arg1.iter() {
+                        let mut col = Vec::new();
+                        for arg3 in arg2.iter() {
+                            let mut layer = Vec::new();
+                            for arg4 in arg3.iter() {
+                                layer.push(func(*arg4));
+                            }
+                            col.push(layer);
+                        }
+                        row.push(col);
+                    }
+                    data.push(row);
+                }
+                ArrayND::new4d(data)
+            }
+        }
+    }
+
+    pub fn type_of_test(&self, num: JsValue) -> String {
+        match num.into_serde::<f64>() {
+            Ok(num) => {
+                if num < 100. {
+                    format!("{num} < 100")
+                } else {
+                    format!("{num} >= 100")
+                }
+            }
+            Err(_) => "array".to_string(),
+        }
+    }
+
+    pub fn add1(&self, num: f64) {
+        self.apply_clone(|x| x + num);
+    }
+
+    pub fn add2(&self, other: ArrayND) {
+        self.apply_elementwise_with_other_array(other, |a, b| a + b);
+    }
+
+    pub fn sub(&self, num: f64) -> ArrayND {
+        self.apply_clone(|x| x - num)
+    }
+
+    pub fn mul(&self, num: f64) -> ArrayND {
+        self.apply_clone(|x| x * num)
+    }
+
+    pub fn div(&self, num: f64) -> ArrayND {
+        self.apply_clone(|x| x / num)
+    }
+
+    pub fn cos(&self) -> ArrayND {
+        self.apply_clone(|x| x.cos())
+    }
+
+    pub fn sin(&self) -> ArrayND {
+        self.apply_clone(|x| x.sin())
+    }
+
+    pub fn tan(&self) -> ArrayND {
+        self.apply_clone(|x| x.tan())
+    }
+
+    pub fn acos(&self) -> ArrayND {
+        self.apply_clone(|x| x.acos())
+    }
+
+    pub fn asin(&self) -> ArrayND {
+        self.apply_clone(|x| x.asin())
+    }
+
+    pub fn atan(&self) -> ArrayND {
+        self.apply_clone(|x| x.atan())
+    }
+
+    pub fn cosh(&self) -> ArrayND {
+        self.apply_clone(|x| x.cosh())
+    }
+
+    pub fn sinh(&self) -> ArrayND {
+        self.apply_clone(|x| x.sinh())
+    }
+
+    pub fn tanh(&self) -> ArrayND {
+        self.apply_clone(|x| x.tanh())
+    }
+
+    pub fn exp(&self) -> ArrayND {
+        self.apply_clone(|x| x.exp())
+    }
+
+    pub fn log(&self, base: f64) -> ArrayND {
+        self.apply_clone(|x| x.log(base))
+    }
+
+    pub fn log2(&self) -> ArrayND {
+        self.apply_clone(|x| x.log(2.0))
+    }
+
+    pub fn log10(&self) -> ArrayND {
+        self.apply_clone(|x| x.log(10.0))
+    }
+
+    pub fn loge(&self) -> ArrayND {
+        self.apply_clone(|x| x.log(E))
+    }
+
+    pub fn logpi(&self) -> ArrayND {
+        self.apply_clone(|x| x.log(PI))
+    }
+
+    pub fn abs(&self) -> ArrayND {
+        self.apply_clone(|x| x.abs())
+    }
+
+    pub fn sqrt(&self) -> ArrayND {
+        self.apply_clone(|x| x.sqrt())
+    }
+
+    pub fn cbrt(&self) -> ArrayND {
+        self.apply_clone(|x| x.cbrt())
+    }
+
+    pub fn pow(&self, exponent: f64) -> ArrayND {
+        self.apply_clone(|x| x.powf(exponent))
+    }
+
+    pub fn sq(&self) -> ArrayND {
+        self.apply_clone(|x| x.powi(2))
+    }
+
+    pub fn cube(&self) -> ArrayND {
+        self.apply_clone(|x| x.powi(3))
+    }
+
+    pub fn is_finite(&self) -> ArrayND {
+        self.apply_clone(|x| (x.is_finite() as i32) as f64)
+    }
+
+    pub fn is_infinite(&self) -> ArrayND {
+        self.apply_clone(|x| (x.is_infinite() as i32) as f64)
+    }
+
+    pub fn is_nan(&self) -> ArrayND {
+        self.apply_clone(|x| (x.is_nan() as i32) as f64)
+    }
+
+    pub fn clamp(&self, min: f64, max: f64) -> ArrayND {
+        self.apply_clone(|x| x.clamp(min, max))
+    }
+
+    // pub fn cos(&self) -> ArrayND {
+    //     match &self.data {
+    //         ArrayData::OneD(arg0) => ArrayND::new1d(arg0.iter().map(|x| x.cos()).collect()),
+    //         ArrayData::TwoD(arg0) => {
+    //             let mut data: Vec<Vec<f64>> = Vec::new();
+    //             for arg1 in arg0.iter() {
+    //                 let mut row: Vec<f64> = Vec::new();
+    //                 for arg2 in arg1.iter() {
+    //                     row.push(arg2.cos());
+    //                 }
+    //                 data.push(row);
+    //             }
+    //             ArrayND::new2d(data)
+    //         }
+    //         ArrayData::ThreeD(arg0) => {
+    //             let mut data: Vec<Vec<Vec<f64>>> = Vec::new();
+    //             for arg1 in arg0.iter() {
+    //                 let mut row: Vec<Vec<f64>> = Vec::new();
+    //                 for arg2 in arg1.iter() {
+    //                     let mut col: Vec<f64> = Vec::new();
+    //                     for arg3 in arg2.iter() {
+    //                         col.push(arg3.cos());
+    //                     }
+    //                     row.push(col);
+    //                 }
+    //                 data.push(row);
+    //             }
+    //             ArrayND::new3d(data)
+    //         }
+    //         ArrayData::FourD(arg0) => {
+    //             let mut data: Vec<Vec<Vec<Vec<f64>>>> = Vec::new();
+    //             for arg1 in arg0.iter() {
+    //                 let mut row: Vec<Vec<Vec<f64>>> = Vec::new();
+    //                 for arg2 in arg1.iter() {
+    //                     let mut col: Vec<Vec<f64>> = Vec::new();
+    //                     for arg3 in arg2.iter() {
+    //                         let mut layer: Vec<f64> = Vec::new();
+    //                         for arg4 in arg3.iter() {
+    //                             layer.push(arg4.cos());
+    //                         }
+    //                         col.push(layer);
+    //                     }
+    //                     row.push(col);
+    //                 }
+    //                 data.push(row);
+    //             }
+    //             ArrayND::new4d(data)
+    //         }
+    //     }
+    // }
 }
 
 pub fn asarray(data: ArrayData) -> ArrayND {
@@ -535,7 +973,7 @@ pub fn asarray(data: ArrayData) -> ArrayND {
 
 #[wasm_bindgen]
 pub fn asarray1d(data: Vec<f64>) -> ArrayND {
-    ArrayND::new(data)
+    ArrayND::new1d(data)
 }
 
 #[wasm_bindgen]
@@ -571,18 +1009,74 @@ pub fn asarray4d(data: &JsValue) -> ArrayND {
 //     }
 // }
 
-fn find_min<T: Copy + Zero + std::cmp::PartialOrd>(data: &[f64]) -> f64 {
-    data.iter()
-        .reduce(|x, y| if x < y { x } else { y })
-        .cloned()
-        .unwrap()
+fn find_min(data: &ArrayData) -> f64 {
+    match data {
+        ArrayData::OneD(arg0) => {
+            *(arg0
+                .iter()
+                .reduce(|a, b| if a < b { a } else { b })
+                .unwrap())
+        }
+        ArrayData::TwoD(arg0) => {
+            *(arg0
+                .iter()
+                .flatten()
+                .reduce(|a, b| if a < b { a } else { b })
+                .unwrap())
+        }
+        ArrayData::ThreeD(arg0) => {
+            *(arg0
+                .iter()
+                .flatten()
+                .flatten()
+                .reduce(|a, b| if a < b { a } else { b })
+                .unwrap())
+        }
+        ArrayData::FourD(arg0) => {
+            *(arg0
+                .iter()
+                .flatten()
+                .flatten()
+                .flatten()
+                .reduce(|a, b| if a < b { a } else { b })
+                .unwrap())
+        }
+    }
 }
 
-fn find_max<T: Copy + Zero + std::cmp::PartialOrd>(data: &[f64]) -> f64 {
-    data.iter()
-        .reduce(|x, y| if x > y { x } else { y })
-        .cloned()
-        .unwrap()
+fn find_max(data: &ArrayData) -> f64 {
+    match data {
+        ArrayData::OneD(arg0) => {
+            *(arg0
+                .iter()
+                .reduce(|a, b| if a > b { a } else { b })
+                .unwrap())
+        }
+        ArrayData::TwoD(arg0) => {
+            *(arg0
+                .iter()
+                .flatten()
+                .reduce(|a, b| if a > b { a } else { b })
+                .unwrap())
+        }
+        ArrayData::ThreeD(arg0) => {
+            *(arg0
+                .iter()
+                .flatten()
+                .flatten()
+                .reduce(|a, b| if a > b { a } else { b })
+                .unwrap())
+        }
+        ArrayData::FourD(arg0) => {
+            *(arg0
+                .iter()
+                .flatten()
+                .flatten()
+                .flatten()
+                .reduce(|a, b| if a > b { a } else { b })
+                .unwrap())
+        }
+    }
 }
 
 impl Display for ArrayND {
@@ -625,28 +1119,19 @@ impl Debug for ArrayND {
 
 #[cfg(test)]
 mod tests {
-    use super::{asarray, ArrayND,ArrayData};
-
+    use super::{asarray, ArrayData, ArrayND};
 
     fn get_array_1d_float() -> ArrayND {
-        ArrayND::new(vec![1., 2., 3., 4., 5., 6., 7.])
+        asarray(ArrayData::OneD(vec![1., 2., 3., 4., 5., 6., 7.]))
     }
 
     fn get_array_2d_float() -> ArrayND {
-        ArrayND::new2d(vec![
-            vec![1., 2., 3.],
-            vec![4., 5., 6.],
-            vec![7., 8., 9.],
-        ])
+        ArrayND::new2d(vec![vec![1., 2., 3.], vec![4., 5., 6.], vec![7., 8., 9.]])
     }
 
     fn get_array_3d_float() -> ArrayND {
         ArrayND::new3d(vec![
-            vec![
-                vec![1., 2., 3.],
-                vec![4., 5., 6.],
-                vec![7., 8., 9.],
-            ],
+            vec![vec![1., 2., 3.], vec![4., 5., 6.], vec![7., 8., 9.]],
             vec![
                 vec![10., 11., 12.],
                 vec![13., 14., 15.],
@@ -660,7 +1145,6 @@ mod tests {
         ])
     }
 
-
     #[test]
     fn sum_float() {
         let array1d = get_array_1d_float();
@@ -672,5 +1156,4 @@ mod tests {
         let array3d = get_array_3d_float();
         assert_eq!(array3d.sum(), 378.);
     }
-
 }

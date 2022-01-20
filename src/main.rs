@@ -7,7 +7,7 @@ use numrs::{asarray, ArrayND};
 
 fn main() {
 
-    let array: ArrayND = ArrayND::random(100_000_000);
+    let array: ArrayND = ArrayND::random(vec![100_000_000]);
     println!("{:?}", array);
     let now = Instant::now();
     println!("sum seq: {:?}", array.seq_sum());
