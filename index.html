@@ -13,7 +13,7 @@
         //import init, { asarray, asarray2d, asarray3d, ArrayND } from "./pkg/numrs.js";
         //import { asarray_js_wrap } from "./pkg/numrs.js"
 
-        import init, { asarray1d, asarray2d, asarray3d, ArrayND, asarray } from "./pkg/numrs.js";
+        import init, { asarray, ArrayNDJS } from "./pkg/numrs.js";
         function generate_array_random_numbers(n) {
             let arr = []
             for (let i = 0; i < n; i++) {
@@ -54,6 +54,9 @@
                 }
 
                 // test to_string method
+
+                let arr_ArrayND = ArrayNDJS.new([1,2,3,4,5])
+                console.log("arr_ArrayND", arr_ArrayND.to_string())
 
                 let arrStr = asarray([1, 2, 3, 4, 5])
                 console.log(arrStr.cos().sin().abs().getShape())

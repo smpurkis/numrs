@@ -1,14 +1,12 @@
-use num_traits::{zero, Zero};
 use rand::Rng;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use std::{
     cmp::min,
     fmt::{Debug, Display},
-    ops::{Add, Div, Index, Mul, Range, RangeFrom, RangeTo, Sub},
+    ops::{Index, Range, RangeFrom, RangeTo},
 };
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
-use web_sys::console;
 
 // constants
 const PI: f64 = std::f64::consts::PI;
@@ -135,8 +133,7 @@ impl ArrayData {
     }
 }
 
-#[wasm_bindgen]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ArrayND {
     data: ArrayData,
     pub max: f64,
@@ -145,8 +142,77 @@ pub struct ArrayND {
     pub size: usize,
 }
 
-#[wasm_bindgen]
 impl ArrayND {
+    pub fn new(data: ArrayData) -> Self {
+        match data {
+            ArrayData::OneD(data) => {
+                let size = data.len();
+                let shape = vec![size];
+                let array_data = ArrayData::OneD(data);
+                let min: f64 = find_min(&array_data);
+                let max: f64 = find_max(&array_data);
+
+                ArrayND {
+                    shape,
+                    size,
+                    data: array_data,
+                    min,
+                    max,
+                }
+            }
+            ArrayData::TwoD(data) => {
+                let shape = vec![data.len(), data[0].len()];
+                let size = data.len() * data[0].len();
+                let array_data = ArrayData::TwoD(data);
+                let min: f64 = find_min(&array_data);
+                let max: f64 = find_max(&array_data);
+
+                ArrayND {
+                    shape,
+                    size,
+                    data: array_data,
+                    min,
+                    max,
+                }
+            }
+            ArrayData::ThreeD(data) => {
+                let shape = vec![data.len(), data[0].len(), data[0][0].len()];
+                let size = data.len() * data[0].len() * data[0][0].len();
+                let array_data = ArrayData::ThreeD(data);
+                let min: f64 = find_min(&array_data);
+                let max: f64 = find_max(&array_data);
+
+                ArrayND {
+                    shape,
+                    size,
+                    data: array_data,
+                    min,
+                    max,
+                }
+            }
+            ArrayData::FourD(data) => {
+                let shape = vec![
+                    data.len(),
+                    data[0].len(),
+                    data[0][0].len(),
+                    data[0][0][0].len(),
+                ];
+                let size = data.len() * data[0].len() * data[0][0].len() * data[0][0][0].len();
+                let array_data = ArrayData::FourD(data);
+                let min: f64 = find_min(&array_data);
+                let max: f64 = find_max(&array_data);
+
+                ArrayND {
+                    shape,
+                    size,
+                    data: array_data,
+                    min,
+                    max,
+                }
+            }
+        }
+    }
+
     fn _new(data: ArrayData) -> ArrayND {
         match data {
             ArrayData::OneD(arg0) => ArrayND::new1d(arg0),
@@ -225,7 +291,6 @@ impl ArrayND {
         }
     }
 
-    #[wasm_bindgen(js_name = "getShape")]
     pub fn get_shape(&self) -> Vec<usize> {
         self.shape.clone()
     }
@@ -403,63 +468,8 @@ impl ArrayND {
     /// assert_eq!(array.size, 10);
     /// assert_eq!(array2d.size, 100);
     /// ```
-    pub fn random(size: Vec<usize>) -> ArrayND {
-        let mut rng = rand::thread_rng();
-        match size.len() {
-            1 => {
-                let mut data: Vec<f64> = vec![];
-                for _ in 0..size[0] {
-                    data.push(rng.gen::<f64>());
-                }
-                ArrayND::new1d(data)
-            }
-            2 => {
-                let mut data: Vec<Vec<f64>> = vec![];
-                for _ in 0..size[0] {
-                    let mut row: Vec<f64> = vec![];
-                    for _ in 0..size[1] {
-                        row.push(rng.gen::<f64>());
-                    }
-                    data.push(row);
-                }
-                ArrayND::new2d(data)
-            }
-            3 => {
-                let mut data: Vec<Vec<Vec<f64>>> = vec![];
-                for _ in 0..size[0] {
-                    let mut row: Vec<Vec<f64>> = vec![];
-                    for _ in 0..size[1] {
-                        let mut col: Vec<f64> = vec![];
-                        for _ in 0..size[2] {
-                            col.push(rng.gen::<f64>());
-                        }
-                        row.push(col);
-                    }
-                    data.push(row);
-                }
-                ArrayND::new3d(data)
-            }
-            4 => {
-                let mut data: Vec<Vec<Vec<Vec<f64>>>> = vec![];
-                for _ in 0..size[0] {
-                    let mut row: Vec<Vec<Vec<f64>>> = vec![];
-                    for _ in 0..size[1] {
-                        let mut col: Vec<Vec<f64>> = vec![];
-                        for _ in 0..size[2] {
-                            let mut layer: Vec<f64> = vec![];
-                            for _ in 0..size[3] {
-                                layer.push(rng.gen::<f64>());
-                            }
-                            col.push(layer);
-                        }
-                        row.push(col);
-                    }
-                    data.push(row);
-                }
-                ArrayND::new4d(data)
-            }
-            _ => panic!("ArrayND::randomND: Array size must be 1, 2, 3, or 4 dimensions"),
-        }
+    pub fn random(shape: Vec<usize>) -> ArrayND {
+        generate(|| rand::random::<f64>(), shape)
     }
 
     /// Generates a random 1D Array with a range
@@ -484,7 +494,6 @@ impl ArrayND {
     /// let array_string: String = array.to_string();
     /// assert_eq!(array_string, "1 2 3 ");
     /// ```
-    #[wasm_bindgen(js_name = toString)]
     pub fn to_string(&self) -> String {
         let mut string = String::new();
         match &self.data {
@@ -581,19 +590,7 @@ impl ArrayND {
     /// assert_eq!(array.flatten(), vec![29., 29., 29., 29., 29., 29., 29., 29., 29.]);
     /// ```
     pub fn fill(value: f64, shape: Vec<usize>) -> ArrayND {
-        let data: ArrayData = match shape.len() {
-            1 => ArrayData::OneD(vec![value; shape[0]]),
-            2 => ArrayData::TwoD(vec![vec![value; shape[1]]; shape[0]]),
-            3 => ArrayData::ThreeD(vec![vec![vec![value; shape[2]]; shape[1]]; shape[0]]),
-            4 => ArrayData::FourD(vec![
-                vec![vec![vec![value; shape[3]]; shape[2]]; shape[1]];
-                shape[0]
-            ]),
-            _ => {
-                panic!("ArrayND::fill() only supports 1D, 2D, 3D, and 4D arrays")
-            }
-        };
-        ArrayND::_new(data)
+        generate(|| value, shape)
     }
 
     pub fn zeros(shape: Vec<usize>) -> ArrayND {
@@ -777,26 +774,13 @@ impl ArrayND {
         }
     }
 
-    pub fn type_of_test(&self, num: JsValue) -> String {
-        match num.into_serde::<f64>() {
-            Ok(num) => {
-                if num < 100. {
-                    format!("{num} < 100")
-                } else {
-                    format!("{num} >= 100")
-                }
-            }
-            Err(_) => "array".to_string(),
-        }
+    pub fn add(&self, num: f64) -> ArrayND {
+        self.apply_clone(|x| x + num)
     }
 
-    pub fn add1(&self, num: f64) {
-        self.apply_clone(|x| x + num);
-    }
-
-    pub fn add2(&self, other: ArrayND) {
-        self.apply_elementwise_with_other_array(other, |a, b| a + b);
-    }
+    // pub fn add(&self, other: ArrayND) {
+    //     self.apply_elementwise_with_other_array(other, |a, b| a + b);
+    // }
 
     pub fn sub(&self, num: f64) -> ArrayND {
         self.apply_clone(|x| x - num)
@@ -910,56 +894,79 @@ impl ArrayND {
         self.apply_clone(|x| x.clamp(min, max))
     }
 
-    // pub fn cos(&self) -> ArrayND {
-    //     match &self.data {
-    //         ArrayData::OneD(arg0) => ArrayND::new1d(arg0.iter().map(|x| x.cos()).collect()),
-    //         ArrayData::TwoD(arg0) => {
-    //             let mut data: Vec<Vec<f64>> = Vec::new();
-    //             for arg1 in arg0.iter() {
-    //                 let mut row: Vec<f64> = Vec::new();
-    //                 for arg2 in arg1.iter() {
-    //                     row.push(arg2.cos());
-    //                 }
-    //                 data.push(row);
-    //             }
-    //             ArrayND::new2d(data)
-    //         }
-    //         ArrayData::ThreeD(arg0) => {
-    //             let mut data: Vec<Vec<Vec<f64>>> = Vec::new();
-    //             for arg1 in arg0.iter() {
-    //                 let mut row: Vec<Vec<f64>> = Vec::new();
-    //                 for arg2 in arg1.iter() {
-    //                     let mut col: Vec<f64> = Vec::new();
-    //                     for arg3 in arg2.iter() {
-    //                         col.push(arg3.cos());
-    //                     }
-    //                     row.push(col);
-    //                 }
-    //                 data.push(row);
-    //             }
-    //             ArrayND::new3d(data)
-    //         }
-    //         ArrayData::FourD(arg0) => {
-    //             let mut data: Vec<Vec<Vec<Vec<f64>>>> = Vec::new();
-    //             for arg1 in arg0.iter() {
-    //                 let mut row: Vec<Vec<Vec<f64>>> = Vec::new();
-    //                 for arg2 in arg1.iter() {
-    //                     let mut col: Vec<Vec<f64>> = Vec::new();
-    //                     for arg3 in arg2.iter() {
-    //                         let mut layer: Vec<f64> = Vec::new();
-    //                         for arg4 in arg3.iter() {
-    //                             layer.push(arg4.cos());
-    //                         }
-    //                         col.push(layer);
-    //                     }
-    //                     row.push(col);
-    //                 }
-    //                 data.push(row);
-    //             }
-    //             ArrayND::new4d(data)
-    //         }
-    //     }
-    // }
+    pub fn floor(&self) -> ArrayND {
+        self.apply_clone(|x| x.floor())
+    }
+
+    pub fn ceil(&self) -> ArrayND {
+        self.apply_clone(|x| x.ceil())
+    }
+
+    pub fn round(&self) -> ArrayND {
+        self.apply_clone(|x| x.round())
+    }
+
+    pub fn trunc(&self) -> ArrayND {
+        self.apply_clone(|x| x.trunc())
+    }
+
+    pub fn signum(&self) -> ArrayND {
+        self.apply_clone(|x| x.signum())
+    }
+
+    pub fn greater(&self, value: f64) -> ArrayND {
+        self.apply_clone(|x| (x > value) as i32 as f64)
+    }
+
+    pub fn greater_equal(&self, value: f64) -> ArrayND {
+        self.apply_clone(|x| (x >= value) as i32 as f64)
+    }
+
+    pub fn less(&self, value: f64) -> ArrayND {
+        self.apply_clone(|x| (x < value) as i32 as f64)
+    }
+
+    pub fn less_equal(&self, value: f64) -> ArrayND {
+        self.apply_clone(|x| (x <= value) as i32 as f64)
+    }
+
+    pub fn equal(&self, value: f64) -> ArrayND {
+        self.apply_clone(|x| (x == value) as i32 as f64)
+    }
+
+    pub fn not_equal(&self, value: f64) -> ArrayND {
+        self.apply_clone(|x| (x != value) as i32 as f64)
+    }
+
+    pub fn and(&self, other: ArrayND) -> ArrayND {
+        self.apply_elementwise_with_other_array(other, |a, b| (a > 0.0 && b > 0.0) as i32 as f64)
+    }
+
+    pub fn or(&self, other: ArrayND) -> ArrayND {
+        self.apply_elementwise_with_other_array(other, |a, b| (a > 0.0 || b > 0.0) as i32 as f64)
+    }
+
+    pub fn xor(&self, other: ArrayND) -> ArrayND {
+        self.apply_elementwise_with_other_array(other, |a, b| ((a > 0.0) != (b > 0.0)) as i32 as f64)
+    }
+
+    pub fn dot(&self, other: ArrayND) -> ArrayND {
+        self.apply_elementwise_with_other_array(other, |a, b| a * b)
+    }
+
+    pub fn cross(&self, other: ArrayND) -> ArrayND {
+        self.apply_elementwise_with_other_array(other, |a, b| a * b)
+    }
+
+    fn is_zero(&self) -> ArrayND {
+        self.apply_clone(|x| (x == 0.0) as i32 as f64)
+    }
+
+    fn is_one(&self) -> ArrayND {
+        self.apply_clone(|x| (x == 1.0) as i32 as f64)
+    }
+
+    
 }
 
 pub fn asarray(data: ArrayData) -> ArrayND {
@@ -971,25 +978,66 @@ pub fn asarray(data: ArrayData) -> ArrayND {
     }
 }
 
-#[wasm_bindgen]
-pub fn asarray1d(data: Vec<f64>) -> ArrayND {
-    ArrayND::new1d(data)
-}
-
-#[wasm_bindgen]
-pub fn asarray2d(data: &JsValue) -> ArrayND {
-    let data: Vec<Vec<f64>> = data.into_serde().unwrap();
-    ArrayND::new2d(data)
-}
-#[wasm_bindgen]
-pub fn asarray3d(data: &JsValue) -> ArrayND {
-    let data: Vec<Vec<Vec<f64>>> = data.into_serde().unwrap();
-    ArrayND::new3d(data)
-}
-#[wasm_bindgen]
-pub fn asarray4d(data: &JsValue) -> ArrayND {
-    let data: Vec<Vec<Vec<Vec<f64>>>> = data.into_serde().unwrap();
-    ArrayND::new4d(data)
+fn generate<F>(mut func: F, shape: Vec<usize>) -> ArrayND
+where
+    F: FnMut() -> f64,
+{
+    // let mut rng = rand::thread_rng().gen::<f64>();
+    match shape.len() {
+        1 => {
+            let mut data: Vec<f64> = vec![];
+            for _ in 0..shape[0] {
+                data.push(func());
+            }
+            ArrayND::new1d(data)
+        }
+        2 => {
+            let mut data: Vec<Vec<f64>> = vec![];
+            for _ in 0..shape[0] {
+                let mut row: Vec<f64> = vec![];
+                for _ in 0..shape[1] {
+                    row.push(func());
+                }
+                data.push(row);
+            }
+            ArrayND::new2d(data)
+        }
+        3 => {
+            let mut data: Vec<Vec<Vec<f64>>> = vec![];
+            for _ in 0..shape[0] {
+                let mut second_array: Vec<Vec<f64>> = vec![];
+                for _ in 0..shape[1] {
+                    let mut row: Vec<f64> = vec![];
+                    for _ in 0..shape[2] {
+                        row.push(func());
+                    }
+                    second_array.push(row);
+                }
+                data.push(second_array);
+            }
+            ArrayND::new3d(data)
+        }
+        4 => {
+            let mut data: Vec<Vec<Vec<Vec<f64>>>> = vec![];
+            for _ in 0..shape[0] {
+                let mut third_array: Vec<Vec<Vec<f64>>> = vec![];
+                for _ in 0..shape[1] {
+                    let mut second_array: Vec<Vec<f64>> = vec![];
+                    for _ in 0..shape[2] {
+                        let mut row: Vec<f64> = vec![];
+                        for _ in 0..shape[3] {
+                            row.push(func());
+                        }
+                        second_array.push(row);
+                    }
+                    third_array.push(second_array);
+                }
+                data.push(third_array);
+            }
+            ArrayND::new4d(data)
+        }
+        _ => panic!("ArrayND::generate() only supports 1D, 2D, 3D, and 4D arrays"),
+    }
 }
 
 // #[wasm_bindgen]
@@ -1077,6 +1125,258 @@ fn find_max(data: &ArrayData) -> f64 {
                 .unwrap())
         }
     }
+}
+
+#[wasm_bindgen]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArrayNDJS {
+    array: ArrayND,
+}
+
+#[wasm_bindgen]
+impl ArrayNDJS {
+    pub fn new(data: &JsValue) -> Self {
+        match data.into_serde::<Vec<f64>>() {
+            Ok(num) => {
+                let array = ArrayND::new(ArrayData::OneD(num));
+                ArrayNDJS { array }
+            }
+            Err(_) => {
+                match data.into_serde::<Vec<Vec<f64>>>() {
+                    Ok(num) => {
+                        let array = ArrayND::new(ArrayData::TwoD(num));
+                        ArrayNDJS { array }
+                    }
+                    Err(_) => {
+                        match data.into_serde::<Vec<Vec<Vec<f64>>>>() {
+                            Ok(num) => {
+                                let array = ArrayND::new(ArrayData::ThreeD(num));
+                                ArrayNDJS { array }
+                            }
+                            Err(_) => {
+                                match data.into_serde::<Vec<Vec<Vec<Vec<f64>>>>>() {
+                                    Ok(num) => {
+                                        let array = ArrayND::new(ArrayData::FourD(num));
+                                        ArrayNDJS { array }
+                                    }
+                                    Err(_) => panic!("Unable to parse data"),
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+        }
+    }
+
+    // #[wasm_bindgen(js_name = toString)]
+    pub fn to_string(&self) -> String {
+        self.array.to_string()
+    }
+
+    pub fn random(shape: &JsValue) -> Self {
+        let shape: Vec<usize> = shape.into_serde().unwrap_or(panic!("Invalid shape"));
+        let array = ArrayND::random(shape);
+        ArrayNDJS { array }
+    }
+
+    pub fn cos(&self) -> Self {
+        let array = self.array.cos();
+        ArrayNDJS { array }
+    }
+
+    pub fn sin(&self) -> Self {
+        let array = self.array.sin();
+        ArrayNDJS { array }
+    }
+
+    pub fn tan(&self) -> Self {
+        let array = self.array.tan();
+        ArrayNDJS { array }
+    }
+
+    pub fn cosh(&self) -> Self {
+        let array = self.array.cosh();
+        ArrayNDJS { array }
+    }
+
+    pub fn sinh(&self) -> Self {
+        let array = self.array.sinh();
+        ArrayNDJS { array }
+    }
+
+    pub fn tanh(&self) -> Self {
+        let array = self.array.tanh();
+        ArrayNDJS { array }
+    }
+
+    pub fn exp(&self) -> Self {
+        let array = self.array.exp();
+        ArrayNDJS { array }
+    }
+
+    pub fn log(&self, base: f64) -> Self {
+        let array = self.array.log(base);
+        ArrayNDJS { array }
+    }
+    pub fn log2(&self) -> Self {
+        let array = self.array.log2();
+        ArrayNDJS { array }
+    }
+
+    pub fn loge(&self) -> Self {
+        let array = self.array.loge();
+        ArrayNDJS { array }
+    }
+
+    pub fn logpi(&self) -> Self {
+        let array = self.array.logpi();
+        ArrayNDJS { array }
+    }
+
+    pub fn log10(&self) -> Self {
+        let array = self.array.log10();
+        ArrayNDJS { array }
+    }
+
+    pub fn sq(&self) -> Self {
+        let array = self.array.sq();
+        ArrayNDJS { array }
+    }
+
+    pub fn cube(&self) -> Self {
+        let array = self.array.cube();
+        ArrayNDJS { array }
+    }
+
+    pub fn sqrt(&self) -> Self {
+        let array = self.array.sqrt();
+        ArrayNDJS { array }
+    }
+
+    pub fn is_nan(&self) -> Self {
+        let array = self.array.is_nan();
+        ArrayNDJS { array }
+    }
+
+    pub fn is_infinite(&self) -> Self {
+        let array = self.array.is_infinite();
+        ArrayNDJS { array }
+    }
+
+    pub fn is_finite(&self) -> Self {
+        let array = self.array.is_finite();
+        ArrayNDJS { array }
+    }
+
+    pub fn is_zero(&self) -> Self {
+        let array = self.array.is_zero();
+        ArrayNDJS { array }
+    }
+
+    pub fn is_one(&self) -> Self {
+        let array = self.array.is_one();
+        ArrayNDJS { array }
+    }
+
+    pub fn cbrt(&self) -> Self {
+        let array = self.array.cbrt();
+        ArrayNDJS { array }
+    }
+
+    pub fn abs(&self) -> Self {
+        let array = self.array.abs();
+        ArrayNDJS { array }
+    }
+
+    pub fn floor(&self) -> Self {
+        let array = self.array.floor();
+        ArrayNDJS { array }
+    }
+
+    pub fn ceil(&self) -> Self {
+        let array = self.array.ceil();
+        ArrayNDJS { array }
+    }
+
+    pub fn round(&self) -> Self {
+        let array = self.array.round();
+        ArrayNDJS { array }
+    }
+
+    pub fn trunc(&self) -> Self {
+        let array = self.array.trunc();
+        ArrayNDJS { array }
+    }
+
+    pub fn pow(&self, power: f64) -> Self {
+        let array = self.array.pow(power);
+        ArrayNDJS { array }
+    }
+
+    pub fn min(&self) -> f64 {
+        self.array.min
+    }
+
+    pub fn max(&self) -> f64 {
+        self.array.max
+    }
+
+    pub fn greater(&self, value: f64) -> Self {
+        let array = self.array.greater(value);
+        ArrayNDJS { array }
+    }
+
+    pub fn greater_equal(&self, value: f64) -> Self {
+        let array = self.array.greater_equal(value);
+        ArrayNDJS { array }
+    }
+
+    pub fn less(&self, value: f64) -> Self {
+        let array = self.array.less(value);
+        ArrayNDJS { array }
+    }
+
+    pub fn less_equal(&self, value: f64) -> Self {
+        let array = self.array.less_equal(value);
+        ArrayNDJS { array }
+    }
+
+    pub fn equal(&self, value: f64) -> Self {
+        let array = self.array.equal(value);
+        ArrayNDJS { array }
+    }
+
+    pub fn not_equal(&self, value: f64) -> Self {
+        let array = self.array.not_equal(value);
+        ArrayNDJS { array }
+    }
+
+    pub fn add(&self, value: f64) -> Self {
+        let array = self.array.add(value);
+        ArrayNDJS { array }
+    }
+
+    pub fn sub(&self, value: f64) -> Self {
+        let array = self.array.sub(value);
+        ArrayNDJS { array }
+    }
+
+    pub fn mul(&self, value: f64) -> Self {
+        let array = self.array.mul(value);
+        ArrayNDJS { array }
+    }
+
+    pub fn div(&self, value: f64) -> Self {
+        let array = self.array.div(value);
+        ArrayNDJS { array }
+    }
+
+    pub fn clamp(&self, min: f64, max: f64) -> Self {
+        let array = self.array.clamp(min, max);
+        ArrayNDJS { array }
+    }
+
 }
 
 impl Display for ArrayND {
