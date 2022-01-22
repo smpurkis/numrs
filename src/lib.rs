@@ -14,6 +14,7 @@ const PI: f64 = std::f64::consts::PI;
 const TAU: f64 = 2.0 * PI;
 const E: f64 = std::f64::consts::E;
 const SQRT_2: f64 = std::f64::consts::SQRT_2;
+const ZERO: f64 = 0.0;
 
 /// 1D Array
 ///
@@ -297,12 +298,6 @@ impl ArrayND {
             max,
         }
     }
-
-    pub fn to_vec(&self) -> &ArrayData {
-        // remove this and have the JsValue conversion logic only in the ArrayNDJS
-        &self.data
-    } 
-
 
     pub fn get_shape(&self) -> Vec<usize> {
         self.shape.clone()
@@ -724,16 +719,16 @@ impl ArrayND {
         }
     }
 
-    fn apply_clone<F>(&self, mut func: F) -> ArrayND
+    fn apply_clone<F>(&self, other: f64, mut func: F) -> ArrayND
     where
-        F: FnMut(f64) -> f64,
+        F: FnMut(f64, f64) -> f64,
     {
         let new_array = self.clone();
         match new_array.data {
             ArrayData::OneD(arg0) => {
                 let mut data: Vec<f64> = Vec::new();
                 for arg1 in arg0.iter() {
-                    data.push(func(*arg1));
+                    data.push(func(other, *arg1));
                 }
                 ArrayND::new1d(data)
             }
@@ -742,7 +737,7 @@ impl ArrayND {
                 for arg1 in arg0.iter() {
                     let mut row = Vec::new();
                     for arg2 in arg1.iter() {
-                        row.push(func(*arg2));
+                        row.push(func(other, *arg2));
                     }
                     data.push(row);
                 }
@@ -755,7 +750,7 @@ impl ArrayND {
                     for arg2 in arg1.iter() {
                         let mut col = Vec::new();
                         for arg3 in arg2.iter() {
-                            col.push(func(*arg3));
+                            col.push(func(other, *arg3));
                         }
                         row.push(col);
                     }
@@ -772,7 +767,7 @@ impl ArrayND {
                         for arg3 in arg2.iter() {
                             let mut layer = Vec::new();
                             for arg4 in arg3.iter() {
-                                layer.push(func(*arg4));
+                                layer.push(func(other, *arg4));
                             }
                             col.push(layer);
                         }
@@ -785,175 +780,178 @@ impl ArrayND {
         }
     }
 
-    pub fn add(&self, other: OperationData) -> ArrayND {
+    fn apply_operationaldata<F>(&self, other: OperationData, f: F) -> ArrayND
+    where
+        F: FnMut(f64, f64) -> f64,
+    {
         match other {
-            OperationData::Number(arg0) => self.apply_clone(|arg1| arg1 + arg0),
-            OperationData::Array(arg0) => self.apply_elementwise_with_other_array(&arg0, |arg1, arg2| arg1 + arg2),
+            OperationData::Number(arg0) => self.apply_clone(arg0, f),
+            OperationData::Array(arg0) => {
+                self.apply_elementwise_with_other_array(&arg0, f)
+            }
         }
     }
 
-    // pub fn add(&self, num: f64) -> ArrayND {
-    //     self.apply_clone(|x| x + num)
-    // }
-
-    // pub fn add(&self, other: ArrayND) {
-    //     self.apply_elementwise_with_other_array(other, |a, b| a + b);
-    // }
-
-    pub fn sub(&self, num: f64) -> ArrayND {
-        self.apply_clone(|x| x - num)
+    pub fn add(&self, other: OperationData) -> ArrayND {
+        self.apply_operationaldata( other, |arg0, a| arg0 + a)
     }
 
-    pub fn mul(&self, num: f64) -> ArrayND {
-        self.apply_clone(|x| x * num)
+
+    pub fn sub(&self, other: OperationData) -> ArrayND {
+        self.apply_operationaldata( other, |arg0, a|arg0 - a)
     }
 
-    pub fn div(&self, num: f64) -> ArrayND {
-        self.apply_clone(|x| x / num)
+    pub fn mul(&self, other: OperationData) -> ArrayND {
+        self.apply_operationaldata( other, |arg0, a| arg0 * a)
+    }
+
+    pub fn div(&self, other: OperationData) -> ArrayND {
+        self.apply_operationaldata( other, |arg0, a| arg0 / a)
+    }
+
+    pub fn pow(&self, other: OperationData) -> ArrayND {
+        self.apply_operationaldata( other, |arg0, a| arg0.powf(a))
+    }
+
+    pub fn log(&self, base: OperationData) -> ArrayND {
+        self.apply_operationaldata( base, |arg0, a| arg0.log(a))
     }
 
     pub fn cos(&self) -> ArrayND {
-        self.apply_clone(|x| x.cos())
+        self.apply_clone(0., |_z, x| x.cos())
     }
 
     pub fn sin(&self) -> ArrayND {
-        self.apply_clone(|x| x.sin())
+        self.apply_clone(0., |_z, x| x.sin())
     }
 
     pub fn tan(&self) -> ArrayND {
-        self.apply_clone(|x| x.tan())
+        self.apply_clone(0., |_z, x| x.tan())
     }
 
     pub fn acos(&self) -> ArrayND {
-        self.apply_clone(|x| x.acos())
+        self.apply_clone(0., |_z, x| x.acos())
     }
 
     pub fn asin(&self) -> ArrayND {
-        self.apply_clone(|x| x.asin())
+        self.apply_clone(0., |_z, x| x.asin())
     }
 
     pub fn atan(&self) -> ArrayND {
-        self.apply_clone(|x| x.atan())
+        self.apply_clone(0., |_z, x| x.atan())
     }
 
     pub fn cosh(&self) -> ArrayND {
-        self.apply_clone(|x| x.cosh())
+        self.apply_clone(0., |_z, x| x.cosh())
     }
 
     pub fn sinh(&self) -> ArrayND {
-        self.apply_clone(|x| x.sinh())
+        self.apply_clone(0., |_z, x| x.sinh())
     }
 
     pub fn tanh(&self) -> ArrayND {
-        self.apply_clone(|x| x.tanh())
+        self.apply_clone(0., |_z, x| x.tanh())
     }
 
     pub fn exp(&self) -> ArrayND {
-        self.apply_clone(|x| x.exp())
+        self.apply_clone(0., |_z, x| x.exp())
     }
 
-    pub fn log(&self, base: f64) -> ArrayND {
-        self.apply_clone(|x| x.log(base))
-    }
 
     pub fn log2(&self) -> ArrayND {
-        self.apply_clone(|x| x.log(2.0))
+        self.apply_clone(0., |_z, x| x.log(2.0))
     }
 
     pub fn log10(&self) -> ArrayND {
-        self.apply_clone(|x| x.log(10.0))
+        self.apply_clone(0., |_z, x| x.log(10.0))
     }
 
     pub fn loge(&self) -> ArrayND {
-        self.apply_clone(|x| x.log(E))
+        self.apply_clone(0., |_z, x| x.log(E))
     }
 
     pub fn logpi(&self) -> ArrayND {
-        self.apply_clone(|x| x.log(PI))
+        self.apply_clone(0., |_z, x| x.log(PI))
     }
 
     pub fn abs(&self) -> ArrayND {
-        self.apply_clone(|x| x.abs())
+        self.apply_clone(0., |_z, x| x.abs())
     }
 
     pub fn sqrt(&self) -> ArrayND {
-        self.apply_clone(|x| x.sqrt())
+        self.apply_clone(0., |_z, x| x.sqrt())
     }
 
     pub fn cbrt(&self) -> ArrayND {
-        self.apply_clone(|x| x.cbrt())
-    }
-
-    pub fn pow(&self, exponent: f64) -> ArrayND {
-        self.apply_clone(|x| x.powf(exponent))
+        self.apply_clone(0., |_z, x| x.cbrt())
     }
 
     pub fn sq(&self) -> ArrayND {
-        self.apply_clone(|x| x.powi(2))
+        self.apply_clone(0., |_z, x| x.powi(2))
     }
 
     pub fn cube(&self) -> ArrayND {
-        self.apply_clone(|x| x.powi(3))
+        self.apply_clone(0., |_z, x| x.powi(3))
     }
 
     pub fn is_finite(&self) -> ArrayND {
-        self.apply_clone(|x| (x.is_finite() as i32) as f64)
+        self.apply_clone(0., |_z, x| (x.is_finite() as i32) as f64)
     }
 
     pub fn is_infinite(&self) -> ArrayND {
-        self.apply_clone(|x| (x.is_infinite() as i32) as f64)
+        self.apply_clone(0., |_z, x| (x.is_infinite() as i32) as f64)
     }
 
     pub fn is_nan(&self) -> ArrayND {
-        self.apply_clone(|x| (x.is_nan() as i32) as f64)
+        self.apply_clone(0., |_z, x| (x.is_nan() as i32) as f64)
     }
 
     pub fn clamp(&self, min: f64, max: f64) -> ArrayND {
-        self.apply_clone(|x| x.clamp(min, max))
+        self.apply_clone(0., |_z, x| x.clamp(min, max))
     }
 
     pub fn floor(&self) -> ArrayND {
-        self.apply_clone(|x| x.floor())
+        self.apply_clone(0., |_z, x| x.floor())
     }
 
     pub fn ceil(&self) -> ArrayND {
-        self.apply_clone(|x| x.ceil())
+        self.apply_clone(0., |_z, x| x.ceil())
     }
 
     pub fn round(&self) -> ArrayND {
-        self.apply_clone(|x| x.round())
+        self.apply_clone(0., |_z, x| x.round())
     }
 
     pub fn trunc(&self) -> ArrayND {
-        self.apply_clone(|x| x.trunc())
+        self.apply_clone(0., |_z, x| x.trunc())
     }
 
     pub fn signum(&self) -> ArrayND {
-        self.apply_clone(|x| x.signum())
+        self.apply_clone(0., |_z, x| x.signum())
     }
 
     pub fn greater(&self, value: f64) -> ArrayND {
-        self.apply_clone(|x| (x > value) as i32 as f64)
+        self.apply_clone(0., |_z, x| (x > value) as i32 as f64)
     }
 
     pub fn greater_equal(&self, value: f64) -> ArrayND {
-        self.apply_clone(|x| (x >= value) as i32 as f64)
+        self.apply_clone(0., |_z, x| (x >= value) as i32 as f64)
     }
 
     pub fn less(&self, value: f64) -> ArrayND {
-        self.apply_clone(|x| (x < value) as i32 as f64)
+        self.apply_clone(0., |_z, x| (x < value) as i32 as f64)
     }
 
     pub fn less_equal(&self, value: f64) -> ArrayND {
-        self.apply_clone(|x| (x <= value) as i32 as f64)
+        self.apply_clone(0., |_z, x| (x <= value) as i32 as f64)
     }
 
     pub fn equal(&self, value: f64) -> ArrayND {
-        self.apply_clone(|x| (x == value) as i32 as f64)
+        self.apply_clone(0., |_z, x| (x == value) as i32 as f64)
     }
 
     pub fn not_equal(&self, value: f64) -> ArrayND {
-        self.apply_clone(|x| (x != value) as i32 as f64)
+        self.apply_clone(0., |_z, x| (x != value) as i32 as f64)
     }
 
     pub fn and(&self, other: ArrayND) -> ArrayND {
@@ -979,11 +977,11 @@ impl ArrayND {
     }
 
     fn is_zero(&self) -> ArrayND {
-        self.apply_clone(|x| (x == 0.0) as i32 as f64)
+        self.apply_clone(0., |_z, x| (x == 0.0) as i32 as f64)
     }
 
     fn is_one(&self) -> ArrayND {
-        self.apply_clone(|x| (x == 1.0) as i32 as f64)
+        self.apply_clone(0., |_z, x| (x == 1.0) as i32 as f64)
     }
 }
 
@@ -1182,35 +1180,53 @@ impl ArrayNDJS {
     }
 
     pub fn to_vec(&self) -> JsValue {
-        let data = self.array.to_vec();
-        JsValue::from_serde(&data).unwrap()
+        match &self.array.data {
+            ArrayData::OneD(arg0) => JsValue::from_serde(&arg0).unwrap(),
+            ArrayData::TwoD(arg0) => JsValue::from_serde(&arg0).unwrap(),
+            ArrayData::ThreeD(arg0) => JsValue::from_serde(&arg0).unwrap(),
+            ArrayData::FourD(arg0) => JsValue::from_serde(&arg0).unwrap(),
+        }
     }
 
-    pub fn add(&self, data: &JsValue) -> ArrayNDJS {
+    fn apply_fn<F>(&self, data: &JsValue, mut f: F) -> ArrayNDJS
+    where
+        F: FnMut(&ArrayND, OperationData) -> ArrayND,
+    {
         match data.into_serde::<f64>() {
             Ok(num) => {
-                let array = self.array.add(OperationData::Number(num));
+                let array = f(&self.array, OperationData::Number(num));
                 ArrayNDJS { array }
             }
-            Err(_) => 
-            match data.into_serde::<Vec<f64>>() {
+            Err(_) => match data.into_serde::<Vec<f64>>() {
                 Ok(num) => {
-                    let array = self.array.add(OperationData::Array(ArrayND::new(ArrayData::OneD(num))));
+                    let array = f(
+                        &self.array,
+                        OperationData::Array(ArrayND::new(ArrayData::OneD(num))),
+                    );
                     ArrayNDJS { array }
                 }
                 Err(_) => match data.into_serde::<Vec<Vec<f64>>>() {
                     Ok(num) => {
-                        let array = self.array.add(OperationData::Array(ArrayND::new(ArrayData::TwoD(num))));
+                        let array = f(
+                            &self.array,
+                            OperationData::Array(ArrayND::new(ArrayData::TwoD(num))),
+                        );
                         ArrayNDJS { array }
                     }
                     Err(_) => match data.into_serde::<Vec<Vec<Vec<f64>>>>() {
                         Ok(num) => {
-                            let array = self.array.add(OperationData::Array(ArrayND::new(ArrayData::ThreeD(num))));
+                            let array = f(
+                                &self.array,
+                                OperationData::Array(ArrayND::new(ArrayData::ThreeD(num))),
+                            );
                             ArrayNDJS { array }
                         }
                         Err(_) => match data.into_serde::<Vec<Vec<Vec<Vec<f64>>>>>() {
                             Ok(num) => {
-                                let array = self.array.add(OperationData::Array(ArrayND::new(ArrayData::FourD(num))));
+                                let array = f(
+                                    &self.array,
+                                    OperationData::Array(ArrayND::new(ArrayData::FourD(num))),
+                                );
                                 ArrayNDJS { array }
                             }
                             Err(_) => panic!("Unable to parse data"),
@@ -1219,6 +1235,38 @@ impl ArrayNDJS {
                 },
             },
         }
+    }
+
+    pub fn add(&self, data: &JsValue) -> ArrayNDJS {
+        self.apply_fn(data, |array, data| array.add(data))
+    }
+
+    pub fn sub(&self, data: &JsValue) -> ArrayNDJS {
+        self.apply_fn(data, |array, data| array.sub(data))
+    }
+
+    pub fn mul(&self, data: &JsValue) -> ArrayNDJS {
+        self.apply_fn(data, |array, data| array.mul(data))
+    }
+
+    pub fn div(&self, data: &JsValue) -> ArrayNDJS {
+        self.apply_fn(data, |array, data| array.div(data))
+    }
+
+    pub fn pow(&self, power: &JsValue) -> Self {
+        self.apply_fn(power, |array, power| array.pow(power))
+    }
+
+    pub fn log(&self, base: &JsValue) -> Self {
+        self.apply_fn(base, |array, base| array.log(base))
+    }
+
+    pub fn arange(&self, start: &JsValue, end: &JsValue, step: &JsValue) -> Self {
+        let start: f64 = start.into_serde().unwrap();
+        let end: f64 = end.into_serde().unwrap();
+        let step: f64 = step.into_serde().unwrap();
+        let array = ArrayND::arange(start, end, step);
+        ArrayNDJS { array }
     }
 
     #[wasm_bindgen(js_name = toString)]
@@ -1276,10 +1324,7 @@ impl ArrayNDJS {
         ArrayNDJS { array }
     }
 
-    pub fn log(&self, base: f64) -> Self {
-        let array = self.array.log(base);
-        ArrayNDJS { array }
-    }
+
     pub fn log2(&self) -> Self {
         let array = self.array.log2();
         ArrayNDJS { array }
@@ -1370,11 +1415,6 @@ impl ArrayNDJS {
         ArrayNDJS { array }
     }
 
-    pub fn pow(&self, power: f64) -> Self {
-        let array = self.array.pow(power);
-        ArrayNDJS { array }
-    }
-
     pub fn min(&self) -> f64 {
         self.array.min
     }
@@ -1410,26 +1450,6 @@ impl ArrayNDJS {
 
     pub fn not_equal(&self, value: f64) -> Self {
         let array = self.array.not_equal(value);
-        ArrayNDJS { array }
-    }
-
-    // pub fn add(&self, value: f64) -> Self {
-    //     let array = self.array.add(value);
-    //     ArrayNDJS { array }
-    // }
-
-    pub fn sub(&self, value: f64) -> Self {
-        let array = self.array.sub(value);
-        ArrayNDJS { array }
-    }
-
-    pub fn mul(&self, value: f64) -> Self {
-        let array = self.array.mul(value);
-        ArrayNDJS { array }
-    }
-
-    pub fn div(&self, value: f64) -> Self {
-        let array = self.array.div(value);
         ArrayNDJS { array }
     }
 

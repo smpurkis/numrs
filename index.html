@@ -67,7 +67,12 @@
                 let arr_ArrayNDJS_2 = ArrayNDJS.new([1, 2, 3, 4, 5])
                 console.log(arr_ArrayNDJS_2.add(3).toString())
                 console.log(arr_ArrayNDJS_2.add([1, 2, 3, 4, 5]).toString())
-                console.log(ArrayNDJS.new([1, 2, 3, 4, 5]).to_vec())
+                console.log(arr_ArrayNDJS_2.add(ArrayNDJS.new([1, 2, 3, 4, 5]).to_vec()).toString())
+                console.log(arr_ArrayNDJS_2.sub(ArrayNDJS.new([1, 2, 3, 4, 5]).to_vec()).toString())
+                console.log(arr_ArrayNDJS_2.div(ArrayNDJS.new([1, 2, 3, 4, 5]).to_vec()).toString())
+                console.log(arr_ArrayNDJS_2.pow(ArrayNDJS.new([1, 2, 3, 4, 5]).to_vec()).toString())
+                console.log(arr_ArrayNDJS_2.logpi().toString())
+                console.log(ArrayNDJS.arange(1, 10, 1).toString())
 
                 // generate random number arrays
 
