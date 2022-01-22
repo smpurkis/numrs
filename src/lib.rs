@@ -1,12 +1,13 @@
 use rand::Rng;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use std::{
     cmp::min,
     fmt::{Debug, Display},
     ops::{Index, Range, RangeFrom, RangeTo},
 };
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use web_sys::console;
 
 // constants
 const PI: f64 = std::f64::consts::PI;
@@ -131,6 +132,12 @@ impl ArrayData {
             ),
         }
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum OperationData {
+    Number(f64),
+    Array(ArrayND),
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -290,6 +297,12 @@ impl ArrayND {
             max,
         }
     }
+
+    pub fn to_vec(&self) -> &ArrayData {
+        // remove this and have the JsValue conversion logic only in the ArrayNDJS
+        &self.data
+    } 
+
 
     pub fn get_shape(&self) -> Vec<usize> {
         self.shape.clone()
@@ -601,17 +614,15 @@ impl ArrayND {
         ArrayND::fill(1., shape)
     }
 
-    fn apply_elementwise_with_other_array<F>(&self, other: ArrayND, mut func: F) -> ArrayND
+    fn apply_elementwise_with_other_array<F>(&self, other: &ArrayND, mut func: F) -> ArrayND
     where
         F: FnMut(f64, f64) -> f64,
     {
         if self.shape != other.shape {
             panic!("ArrayND::apply_elementwise_with_other_array() requires both arrays to have the same shape");
         }
-        let self_array = self.clone();
-        let other_array = other.clone();
 
-        let stuff = (self_array, other_array);
+        let stuff = (self, other);
         match stuff {
                 (ArrayND { data: ArrayData::OneD(arg0), .. }, ArrayND { data: ArrayData::OneD(arg1), .. }) => {
                     let mut data: Vec<f64> = Vec::new();
@@ -774,9 +785,16 @@ impl ArrayND {
         }
     }
 
-    pub fn add(&self, num: f64) -> ArrayND {
-        self.apply_clone(|x| x + num)
+    pub fn add(&self, other: OperationData) -> ArrayND {
+        match other {
+            OperationData::Number(arg0) => self.apply_clone(|arg1| arg1 + arg0),
+            OperationData::Array(arg0) => self.apply_elementwise_with_other_array(&arg0, |arg1, arg2| arg1 + arg2),
+        }
     }
+
+    // pub fn add(&self, num: f64) -> ArrayND {
+    //     self.apply_clone(|x| x + num)
+    // }
 
     // pub fn add(&self, other: ArrayND) {
     //     self.apply_elementwise_with_other_array(other, |a, b| a + b);
@@ -939,23 +957,25 @@ impl ArrayND {
     }
 
     pub fn and(&self, other: ArrayND) -> ArrayND {
-        self.apply_elementwise_with_other_array(other, |a, b| (a > 0.0 && b > 0.0) as i32 as f64)
+        self.apply_elementwise_with_other_array(&other, |a, b| (a > 0.0 && b > 0.0) as i32 as f64)
     }
 
     pub fn or(&self, other: ArrayND) -> ArrayND {
-        self.apply_elementwise_with_other_array(other, |a, b| (a > 0.0 || b > 0.0) as i32 as f64)
+        self.apply_elementwise_with_other_array(&other, |a, b| (a > 0.0 || b > 0.0) as i32 as f64)
     }
 
     pub fn xor(&self, other: ArrayND) -> ArrayND {
-        self.apply_elementwise_with_other_array(other, |a, b| ((a > 0.0) != (b > 0.0)) as i32 as f64)
+        self.apply_elementwise_with_other_array(&other, |a, b| {
+            ((a > 0.0) != (b > 0.0)) as i32 as f64
+        })
     }
 
     pub fn dot(&self, other: ArrayND) -> ArrayND {
-        self.apply_elementwise_with_other_array(other, |a, b| a * b)
+        self.apply_elementwise_with_other_array(&other, |a, b| a * b)
     }
 
     pub fn cross(&self, other: ArrayND) -> ArrayND {
-        self.apply_elementwise_with_other_array(other, |a, b| a * b)
+        self.apply_elementwise_with_other_array(&other, |a, b| a * b)
     }
 
     fn is_zero(&self) -> ArrayND {
@@ -965,8 +985,6 @@ impl ArrayND {
     fn is_one(&self) -> ArrayND {
         self.apply_clone(|x| (x == 1.0) as i32 as f64)
     }
-
-    
 }
 
 pub fn asarray(data: ArrayData) -> ArrayND {
@@ -1141,41 +1159,84 @@ impl ArrayNDJS {
                 let array = ArrayND::new(ArrayData::OneD(num));
                 ArrayNDJS { array }
             }
-            Err(_) => {
-                match data.into_serde::<Vec<Vec<f64>>>() {
+            Err(_) => match data.into_serde::<Vec<Vec<f64>>>() {
+                Ok(num) => {
+                    let array = ArrayND::new(ArrayData::TwoD(num));
+                    ArrayNDJS { array }
+                }
+                Err(_) => match data.into_serde::<Vec<Vec<Vec<f64>>>>() {
                     Ok(num) => {
-                        let array = ArrayND::new(ArrayData::TwoD(num));
+                        let array = ArrayND::new(ArrayData::ThreeD(num));
                         ArrayNDJS { array }
                     }
-                    Err(_) => {
-                        match data.into_serde::<Vec<Vec<Vec<f64>>>>() {
-                            Ok(num) => {
-                                let array = ArrayND::new(ArrayData::ThreeD(num));
-                                ArrayNDJS { array }
-                            }
-                            Err(_) => {
-                                match data.into_serde::<Vec<Vec<Vec<Vec<f64>>>>>() {
-                                    Ok(num) => {
-                                        let array = ArrayND::new(ArrayData::FourD(num));
-                                        ArrayNDJS { array }
-                                    }
-                                    Err(_) => panic!("Unable to parse data"),
-                                }
-                            }
+                    Err(_) => match data.into_serde::<Vec<Vec<Vec<Vec<f64>>>>>() {
+                        Ok(num) => {
+                            let array = ArrayND::new(ArrayData::FourD(num));
+                            ArrayNDJS { array }
                         }
-                    }
-                }
+                        Err(_) => panic!("Unable to parse data"),
+                    },
+                },
             },
         }
     }
 
-    // #[wasm_bindgen(js_name = toString)]
+    pub fn to_vec(&self) -> JsValue {
+        let data = self.array.to_vec();
+        JsValue::from_serde(&data).unwrap()
+    }
+
+    pub fn add(&self, data: &JsValue) -> ArrayNDJS {
+        match data.into_serde::<f64>() {
+            Ok(num) => {
+                let array = self.array.add(OperationData::Number(num));
+                ArrayNDJS { array }
+            }
+            Err(_) => 
+            match data.into_serde::<Vec<f64>>() {
+                Ok(num) => {
+                    let array = self.array.add(OperationData::Array(ArrayND::new(ArrayData::OneD(num))));
+                    ArrayNDJS { array }
+                }
+                Err(_) => match data.into_serde::<Vec<Vec<f64>>>() {
+                    Ok(num) => {
+                        let array = self.array.add(OperationData::Array(ArrayND::new(ArrayData::TwoD(num))));
+                        ArrayNDJS { array }
+                    }
+                    Err(_) => match data.into_serde::<Vec<Vec<Vec<f64>>>>() {
+                        Ok(num) => {
+                            let array = self.array.add(OperationData::Array(ArrayND::new(ArrayData::ThreeD(num))));
+                            ArrayNDJS { array }
+                        }
+                        Err(_) => match data.into_serde::<Vec<Vec<Vec<Vec<f64>>>>>() {
+                            Ok(num) => {
+                                let array = self.array.add(OperationData::Array(ArrayND::new(ArrayData::FourD(num))));
+                                ArrayNDJS { array }
+                            }
+                            Err(_) => panic!("Unable to parse data"),
+                        },
+                    },
+                },
+            },
+        }
+    }
+
+    #[wasm_bindgen(js_name = toString)]
     pub fn to_string(&self) -> String {
         self.array.to_string()
     }
 
-    pub fn random(shape: &JsValue) -> Self {
-        let shape: Vec<usize> = shape.into_serde().unwrap_or(panic!("Invalid shape"));
+    // #[wasm_bindgen(js_name = getShape)]
+    pub fn get_shape(&self) -> Vec<usize> {
+        self.array.get_shape()
+    }
+
+    pub fn sum(&self) -> f64 {
+        self.array.sum()
+    }
+
+    pub fn random(shape: JsValue) -> Self {
+        let shape = shape.into_serde::<Vec<usize>>().unwrap();
         let array = ArrayND::random(shape);
         ArrayNDJS { array }
     }
@@ -1352,10 +1413,10 @@ impl ArrayNDJS {
         ArrayNDJS { array }
     }
 
-    pub fn add(&self, value: f64) -> Self {
-        let array = self.array.add(value);
-        ArrayNDJS { array }
-    }
+    // pub fn add(&self, value: f64) -> Self {
+    //     let array = self.array.add(value);
+    //     ArrayNDJS { array }
+    // }
 
     pub fn sub(&self, value: f64) -> Self {
         let array = self.array.sub(value);
@@ -1376,7 +1437,6 @@ impl ArrayNDJS {
         let array = self.array.clamp(min, max);
         ArrayNDJS { array }
     }
-
 }
 
 impl Display for ArrayND {

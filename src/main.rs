@@ -5,11 +5,14 @@ use numrs::ArrayND;
 mod lib;
 
 
+
 fn main() {
 
 
     let array: ArrayND = ArrayND::random(vec![1_000_000]);
+    let array_clone = array.clone();
     println!("{:?}", array);
+    println!("{:?}", array_clone.add(numrs::OperationData::Array(&array)));
     let now = Instant::now();
     println!("sum seq: {:?}", array.seq_sum());
     println!("Time Taken: {:?}", now.elapsed());
